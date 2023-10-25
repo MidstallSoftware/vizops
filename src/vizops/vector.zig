@@ -57,13 +57,22 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             return c;
         }
 
-        pub fn array(self: Self) [VectorLength]ElementType {
-            var c = [_]ElementType{0} ** VectorLength;
-            var i: usize = 0;
-            while (i < c.len) : (i += 1) {
-                c[i] = self.value[i];
+        pub inline fn checkIndex(i: anytype) void {
+            switch (@typeInfo(@TypeOf(i))) {
+                .Int => assert(i > -1 and i < VectorLength),
+                .ComptimeInt => if (i < 0 or i >= VectorLength) @compileError("Index is out of range") else void,
+                else => @compileError("Invalid type for index"),
             }
-            return c;
+        }
+
+        pub inline fn get(self: Self, i: anytype) ElementType {
+            checkIndex(i);
+            return self.value[i];
+        }
+
+        pub inline fn set(self: Self, i: anytype, value: ElementType) void {
+            checkIndex(i);
+            self.value[i] = value;
         }
 
         pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
@@ -87,33 +96,58 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             return findTyped(self, ElementType, func);
         }
 
-        pub fn mapSizedReturn(self: Self, b: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(ReturnLength, ReturnType) {
+        pub fn mixSizedReturn(self: Self, b: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(ReturnLength, ReturnType) {
             comptime assert(ReturnLength <= VectorLength);
 
             var c = Vector(ReturnLength, ReturnType).zero();
             comptime var i: usize = 0;
             inline while (i < ReturnLength) : (i += 1) {
-                const x = self.value[i];
-                const y = b.value[i];
+                const x = self.get(i);
+                const y = b.get(i);
+
+                // TODO: figure out how to use set() without getting a const error
                 c.value[i] = func(x, y);
             }
             return c;
         }
 
-        pub inline fn mapSized(self: Self, b: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ElementType) {
-            return mapSizedReturn(self, b, ElementType, ReturnLength, func);
+        pub inline fn mixSized(self: Self, b: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ElementType) {
+            return mixSizedReturn(self, b, ElementType, ReturnLength, func);
         }
 
-        pub inline fn mapReturn(self: Self, b: Self, comptime ReturnType: type, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
-            return mapSizedReturn(self, b, ReturnType, VectorLength, func);
+        pub inline fn mixReturn(self: Self, b: Self, comptime ReturnType: type, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
+            return mixSizedReturn(self, b, ReturnType, VectorLength, func);
         }
 
-        pub inline fn map(self: Self, b: Self, func: *const fn (i: ElementType, n: ElementType) ElementType) Self {
-            return mapSizedReturn(self, b, ElementType, VectorLength, func);
+        pub inline fn mix(self: Self, b: Self, func: *const fn (i: ElementType, n: ElementType) ElementType) Self {
+            return mixSizedReturn(self, b, ElementType, VectorLength, func);
+        }
+
+        pub fn mapSizedReturn(self: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType) ReturnType) Vector(ReturnType, ReturnLength) {
+            comptime assert(ReturnLength <= VectorLength);
+
+            var c = Vector(ReturnLength, ReturnType).zero();
+            comptime var i: usize = 0;
+            inline while (i < ReturnLength) : (i += 1) {
+                c.value[i] = func(self.get(i));
+            }
+            return c;
+        }
+
+        pub inline fn mapSized(self: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType) ElementType) Vector(ReturnLength, ElementType) {
+            return mapSizedReturn(self, ElementType, ReturnLength, func);
+        }
+
+        pub inline fn mapReturn(self: Self, comptime ReturnType: type, func: *const fn (i: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
+            return mapSizedReturn(self, ReturnType, VectorLength, func);
+        }
+
+        pub inline fn map(self: Self, func: *const fn (i: ElementType) ElementType) Self {
+            return mapSizedReturn(self, ElementType, VectorLength, func);
         }
 
         pub inline fn mul(self: Self, b: Self) Self {
-            return map(self, b, (struct {
+            return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x * y;
                 }
@@ -121,7 +155,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
         }
 
         pub inline fn div(self: Self, b: Self) Self {
-            return map(self, b, (struct {
+            return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x / y;
                 }
@@ -129,7 +163,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
         }
 
         pub inline fn add(self: Self, b: Self) Self {
-            return map(self, b, (struct {
+            return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x + y;
                 }
@@ -137,7 +171,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
         }
 
         pub inline fn sub(self: Self, b: Self) Self {
-            return map(self, b, (struct {
+            return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x - y;
                 }
@@ -145,7 +179,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
         }
 
         pub inline fn mod(self: Self, b: Self) Self {
-            return map(self, b, (struct {
+            return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x % y;
                 }

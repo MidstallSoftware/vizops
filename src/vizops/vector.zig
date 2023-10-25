@@ -7,6 +7,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
         const Self = @This();
 
         pub const Type = @Vector(VectorLength, ElementType);
+        pub const ArrayType = [VectorLength]ElementType;
 
         pub usingnamespace if (VectorLength > 1 and VectorLength < 5)
             struct {
@@ -36,15 +37,15 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             else => @compileError("Element type must be a float or integer"),
         };
 
-        value: Type = Type{0} ** VectorLength,
+        value: Type = [_]ElementType{0} ** VectorLength,
 
-        pub fn init(value: Type) Self {
+        pub inline fn init(value: Type) Self {
             return .{
                 .value = value,
             };
         }
 
-        pub fn zero() Self {
+        pub inline fn zero() Self {
             return .{};
         }
 
@@ -56,63 +57,95 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             return c;
         }
 
-        pub fn setSizedReturn(self: Self, b: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ReturnType) {
-            var c = Vector(ReturnLength, ReturnType).zero();
-            inline for (&c.value, 0..) |*z, i| {
-                const x = self.value[i];
-                const y = b.value[i];
-
-                z.* = func(x, y);
+        pub fn array(self: Self) [VectorLength]ElementType {
+            var c = [_]ElementType{0} ** VectorLength;
+            var i: usize = 0;
+            while (i < c.len) : (i += 1) {
+                c[i] = self.value[i];
             }
             return c;
         }
 
-        pub inline fn setSized(self: Self, b: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ElementType) {
-            return setSizedReturn(self, b, ElementType, ReturnLength, func);
+        pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) @TypeOf(writer).Error!void {
+            _ = fmt;
+            _ = options;
+
+            try writer.print("vizops.Vector({}, {s})", .{ VectorLength, @typeName(ElementType) });
+            try writer.print("{any}", .{self.value});
         }
 
-        pub inline fn setReturn(self: Self, b: Self, comptime ReturnType: type, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
-            return setSizedReturn(self, b, ReturnType, VectorLength, func);
+        pub fn findTyped(self: Self, comptime T: type, func: *const fn (i: ElementType) ?T) ?T {
+            comptime var i: usize = 0;
+            inline while (i < VectorLength) : (i += i) {
+                const res = func(self.value[i]);
+                if (res) |v| return v;
+            }
+            return null;
         }
 
-        pub inline fn set(self: Self, b: Self, func: *const fn (i: ElementType, n: ElementType) ElementType) Self {
-            return setSized(self, b, ElementType, VectorLength, func);
+        pub inline fn find(self: Self, func: *const fn (i: ElementType) ?ElementType) ?ElementType {
+            return findTyped(self, ElementType, func);
         }
 
-        pub fn mul(self: Self, b: Self) Self {
-            return set(self, b, (struct {
+        pub fn mapSizedReturn(self: Self, b: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(ReturnLength, ReturnType) {
+            comptime assert(ReturnLength <= VectorLength);
+
+            var c = Vector(ReturnLength, ReturnType).zero();
+            comptime var i: usize = 0;
+            inline while (i < ReturnLength) : (i += 1) {
+                const x = self.value[i];
+                const y = b.value[i];
+                c.value[i] = func(x, y);
+            }
+            return c;
+        }
+
+        pub inline fn mapSized(self: Self, b: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ElementType) {
+            return mapSizedReturn(self, b, ElementType, ReturnLength, func);
+        }
+
+        pub inline fn mapReturn(self: Self, b: Self, comptime ReturnType: type, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
+            return mapSizedReturn(self, b, ReturnType, VectorLength, func);
+        }
+
+        pub inline fn map(self: Self, b: Self, func: *const fn (i: ElementType, n: ElementType) ElementType) Self {
+            return mapSizedReturn(self, b, ElementType, VectorLength, func);
+        }
+
+        pub inline fn mul(self: Self, b: Self) Self {
+            return map(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x * y;
                 }
             }).func);
         }
 
-        pub fn div(self: Self, b: Self) Self {
-            return set(self, b, (struct {
+        pub inline fn div(self: Self, b: Self) Self {
+            return map(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x / y;
                 }
             }).func);
         }
 
-        pub fn add(self: Self, b: Self) Self {
-            return set(self, b, (struct {
+        pub inline fn add(self: Self, b: Self) Self {
+            return map(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x + y;
                 }
             }).func);
         }
 
-        pub fn sub(self: Self, b: Self) Self {
-            return set(self, b, (struct {
+        pub inline fn sub(self: Self, b: Self) Self {
+            return map(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x - y;
                 }
             }).func);
         }
 
-        pub fn mod(self: Self, b: Self) Self {
-            return set(self, b, (struct {
+        pub inline fn mod(self: Self, b: Self) Self {
+            return map(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x % y;
                 }

@@ -1,22 +1,9 @@
 const std = @import("std");
 const vizops = @import("vizops");
 
-fn printDecl(comptime T: type) void {
-    inline for (@typeInfo(T).Struct.decls) |decl| {
-        const field = @field(T, decl.name);
-        const fieldInfo = @typeInfo(@TypeOf(field));
-
-        switch (fieldInfo) {
-            .Fn => std.debug.print("{s}\n", .{decl.name}),
-            .Struct => {
-                std.debug.print("{}\n", .{field});
-                printDecl(field);
-            },
-            else => std.debug.print("{}\n", .{field}),
-        }
-    }
-}
-
 pub fn main() void {
-    printDecl(vizops.vector);
+    const vec2f = vizops.vector.Float32Vector2.zero()
+        .add(vizops.vector.Float32Vector2.init(.{ 1.0, 0.5 }));
+
+    std.debug.print("{any}\n", .{vec2f});
 }

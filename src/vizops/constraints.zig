@@ -1,3 +1,6 @@
+const std = @import("std");
+const testing = std.testing;
+
 const metaplus = @import("meta+");
 const vector = @import("vector.zig");
 
@@ -33,7 +36,15 @@ pub fn VectorConstraint(comptime Length: usize, comptime T: type) type {
         }
 
         pub fn fits(self: Self, vec: Vector) bool {
-            return self.min.value < vec.value and vec.value < self.max.value;
+            if (self.min) |m| {
+                if (std.simd.countTrues(vec.value < m.value) == Length) return false;
+            }
+
+            if (self.max) |m| {
+                if (std.simd.countTrues(vec.value > m.value) == Length) return false;
+            }
+
+            return true;
         }
     };
 }
@@ -66,4 +77,17 @@ pub fn BoxConstrains(comptime Length: usize, comptime T: type) type {
             return true;
         }
     };
+}
+
+test "vector constrains fittings" {
+    const size = Size(2, i8){
+        .horiz = vector.Vector(2, i8).init(.{ 1.0, 2.0 }),
+        .vert = vector.Vector(2, i8).init(.{ 2.0, 3.0 }),
+    };
+
+    try testing.expectEqual(VectorConstraint(2, i8).tight(size, .horiz).fits(size.horiz), true);
+    try testing.expectEqual(VectorConstraint(2, i8).tight(size, .horiz).fits(size.vert), false);
+
+    try testing.expectEqual(VectorConstraint(2, i8).tight(size, .vert).fits(size.vert), true);
+    try testing.expectEqual(VectorConstraint(2, i8).tight(size, .vert).fits(size.horiz), false);
 }

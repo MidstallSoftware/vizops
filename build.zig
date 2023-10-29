@@ -33,6 +33,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    unit_tests.addModule("meta+", metaplus.module("meta+"));
+
     const run_unit_tests = b.addRunArtifact(unit_tests);
     step_test.dependOn(&run_unit_tests.step);
 

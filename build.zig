@@ -3,6 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const no_docs = b.option(bool, "no-docs", "skip installing documentation") orelse false;
 
     const metaplus = b.dependency("metaplus", .{
         .target = target,
@@ -16,7 +17,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const vizops = b.addModule("vizops", .{
-        .source_file = .{ .path = b.pathFromRoot("src/vizops.zig") },
+        .source_file = .{ .path = b.pathFromRoot("vizops.zig") },
         .dependencies = &.{.{
             .name = "meta+",
             .module = metaplus.module("meta+"),
@@ -27,7 +28,7 @@ pub fn build(b: *std.Build) void {
 
     const unit_tests = b.addTest(.{
         .root_source_file = .{
-            .path = b.pathFromRoot("src/vizops.zig"),
+            .path = b.pathFromRoot("vizops.zig"),
         },
         .target = target,
         .optimize = optimize,
@@ -41,7 +42,7 @@ pub fn build(b: *std.Build) void {
     const exe_example = b.addExecutable(.{
         .name = "example",
         .root_source_file = .{
-            .path = b.pathFromRoot("src/example.zig"),
+            .path = b.pathFromRoot("example.zig"),
         },
         .target = target,
         .optimize = optimize,
@@ -49,4 +50,14 @@ pub fn build(b: *std.Build) void {
 
     exe_example.addModule("vizops", vizops);
     b.installArtifact(exe_example);
+
+    if (!no_docs) {
+        const docs = b.addInstallDirectory(.{
+            .source_dir = unit_tests.getEmittedDocs(),
+            .install_dir = .prefix,
+            .install_subdir = "docs",
+        });
+
+        b.getInstallStep().dependOn(&docs.step);
+    }
 }

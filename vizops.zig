@@ -1,3 +1,5 @@
+//!zig-autodoc-guide: README.md
+
 const testing = @import("std").testing;
 
 pub const constraints = @import("vizops/constraints.zig");

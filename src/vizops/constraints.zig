@@ -36,15 +36,10 @@ pub fn VectorConstraint(comptime Length: usize, comptime T: type) type {
         }
 
         pub fn fits(self: Self, vec: Vector) bool {
-            if (self.min) |m| {
-                if (std.simd.countTrues(vec.value < m.value) == Length) return false;
-            }
-
-            if (self.max) |m| {
-                if (std.simd.countTrues(vec.value > m.value) == Length) return false;
-            }
-
-            return true;
+            return std.simd.countTrues(@Vector(2, bool){
+                if (self.min) |m| std.simd.countTrues(vec.value >= m.value) == Length else true,
+                if (self.max) |m| std.simd.countTrues(vec.value <= m.value) == Length else true,
+            }) == Length;
         }
     };
 }
@@ -60,21 +55,16 @@ pub fn BoxConstrains(comptime Length: usize, comptime T: type) type {
 
         pub fn tight(size: _Size) Self {
             return .{
-                .horiz = VConstraint.tight(size),
-                .vert = VConstraint.tight(size),
+                .horiz = VConstraint.tight(size, .horiz),
+                .vert = VConstraint.tight(size, .vert),
             };
         }
 
         pub fn fits(self: Self, size: _Size) bool {
-            if (self.horiz) |h| {
-                if (!h.fits(size.horiz)) return false;
-            }
-
-            if (self.vert) |v| {
-                if (!v.fits(size.vert)) return false;
-            }
-
-            return true;
+            return std.simd.countTrues(@Vector(2, bool){
+                if (self.horiz) |h| h.fits(size.horiz) else true,
+                if (self.vert) |v| v.fits(size.vert) else true,
+            }) == Length;
         }
     };
 }
@@ -90,4 +80,13 @@ test "vector constraints fittings" {
 
     try testing.expectEqual(VectorConstraint(2, i8).tight(size, .vert).fits(size.vert), true);
     try testing.expectEqual(VectorConstraint(2, i8).tight(size, .vert).fits(size.horiz), false);
+}
+
+test "box constraints fittings" {
+    const size = Size(2, i8){
+        .horiz = vector.Vector(2, i8).init(.{ 1.0, 2.0 }),
+        .vert = vector.Vector(2, i8).init(.{ 2.0, 3.0 }),
+    };
+
+    try testing.expectEqual(BoxConstrains(2, i8).tight(size).fits(size), true);
 }

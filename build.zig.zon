@@ -2,4 +2,10 @@
   .name = "vizops",
   .version = "0.1.0",
   .paths = .{"."},
+  .dependencies = .{
+    .metaplus = .{
+      .url = "https://github.com/MidstallSoftware/meta-plus/archive/941c7a808d8e7690b819992ddc75bfd9ccd517c4.tar.gz",
+      .hash = "12204490afc11e348792a5779ebfba922041502e64132af7f6e4f355505bbe052f53",
+    },
+  },
 }

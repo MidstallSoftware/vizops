@@ -4,9 +4,37 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const metaplus = b.dependency("metaplus", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    _ = b.addModule("meta+", .{
+        .source_file = .{
+            .path = metaplus.builder.pathFromRoot(metaplus.module("meta+").source_file.path),
+        },
+    });
+
     const vizops = b.addModule("vizops", .{
         .source_file = .{ .path = b.pathFromRoot("src/vizops.zig") },
+        .dependencies = &.{.{
+            .name = "meta+",
+            .module = metaplus.module("meta+"),
+        }},
     });
+
+    const step_test = b.step("test", "Run all unit tests");
+
+    const unit_tests = b.addTest(.{
+        .root_source_file = .{
+            .path = b.pathFromRoot("src/vizops.zig"),
+        },
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+    step_test.dependOn(&run_unit_tests.step);
 
     const exe_example = b.addExecutable(.{
         .name = "example",

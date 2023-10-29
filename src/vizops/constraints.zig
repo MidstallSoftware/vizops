@@ -79,7 +79,7 @@ pub fn BoxConstrains(comptime Length: usize, comptime T: type) type {
     };
 }
 
-test "vector constrains fittings" {
+test "vector constraints fittings" {
     const size = Size(2, i8){
         .horiz = vector.Vector(2, i8).init(.{ 1.0, 2.0 }),
         .vert = vector.Vector(2, i8).init(.{ 2.0, 3.0 }),

@@ -9,7 +9,7 @@ fn AutoVector(comptime L: usize, comptime T: type) type {
         .Vector => |v| Vector(v.len, v.child),
         .Pointer => |p| AutoVector(L, p.child),
         .Array => |a| Vector(a.len, a.child),
-        .Struct => if (@hasDecl(T, "ElementType") and @hasDecl(T, "Length")) Vector(T.Length, T.ElementType) else @compileError("Incompatible type: " ++ @typeName(T)),
+        .Struct => |s| if (@hasDecl(T, "ElementType") and @hasDecl(T, "Length")) Vector(T.Length, T.ElementType) else if (s.is_tuple) Vector(s.fields.len, s.fields[0].type) else @compileError("Incompatible type: " ++ @typeName(T)),
         else => @compileError("Incompatible type: " ++ @typeName(T)),
     };
 }
@@ -58,7 +58,14 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             return switch (@typeInfo(@TypeOf(value))) {
                 .ComptimeInt, .Int, .ComptimeFloat, .Float, .Pointer => .{ .value = @splat(value) },
                 .Array, .Vector => .{ .value = value },
-                .Struct => value,
+                .Struct => |s| if (s.is_tuple) blk: {
+                    var val = @Vector(s.fields.len, ElementType);
+                    var i: usize = 0;
+                    inline while (i < s.fields.len) : (i += 1) {
+                        val[i] = @field(value, s.fields[i].name);
+                    }
+                    break :blk val;
+                } else value,
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(value))),
             };
         }
@@ -150,10 +157,10 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                         r.value[i] = func(self.value[i], b[i]);
                     }
                 },
-                .Struct => {
+                .Struct => |s| {
                     comptime var i: usize = 0;
                     inline while (i < ResultType.Length) : (i += 1) {
-                        r.value[i] = func(self.value[i], b.value[i]);
+                        r.value[i] = func(self.value[i], if (s.is_tuple) @field(b, s.fields[i].name) else b.value[i]);
                     }
                 },
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),

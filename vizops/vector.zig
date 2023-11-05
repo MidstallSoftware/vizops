@@ -109,6 +109,15 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             return null;
         }
 
+        pub fn each(self: Self, func: *const fn (i: ElementType) ElementType) Self {
+            var r = zero();
+            comptime var i: usize = 0;
+            inline while (i < VectorLength) : (i += i) {
+                r.value[i] = func(self.value[i]);
+            }
+            return r;
+        }
+
         pub fn mix(self: Self, b: anytype, func: *const fn (i: ElementType, n: AutoVector(VectorLength, @TypeOf(b)).ElementType) AutoVector(VectorLength, @TypeOf(b)).ElementType) AutoVector(VectorLength, @TypeOf(b)) {
             if (@typeInfo(@TypeOf(b)) == .Pointer) return self.mix(b.*, func);
 
@@ -243,8 +252,139 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             }).func);
         }
 
-        pub inline fn equal(self: Self, b: Self) bool {
-            return std.simd.countTrues(self.value == b.value) == VectorLength;
+        pub inline fn shl(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value << b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value << b);
+
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return x << y;
+                }
+            }).func);
+        }
+
+        pub inline fn shr(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value >> b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value >> b);
+
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return x >> y;
+                }
+            }).func);
+        }
+
+        pub inline fn @"and"(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value & b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value & b);
+
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return x & y;
+                }
+            }).func);
+        }
+
+        pub inline fn @"or"(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value | b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value | b);
+
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return x | y;
+                }
+            }).func);
+        }
+
+        pub inline fn xor(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value ^ b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value ^ b);
+
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return x ^ y;
+                }
+            }).func);
+        }
+
+        pub inline fn not(self: Self) Self {
+            return init(~self.value);
+        }
+
+        pub inline fn inv(self: Self) Self {
+            return init(-self.value);
+        }
+
+        pub inline fn cast(self: Self, comptime T: type) Vector(VectorLength, T) {
+            if (T == ElementType) return self;
+
+            var v = Vector(VectorLength, T).zero();
+
+            comptime var i: usize = 0;
+            inline while (i < VectorLength) : (i += 1) {
+                v.value[i] = switch (@typeInfo(T)) {
+                    .Int => @intCast(self.value[i]),
+                    .Float => @floatCast(self.value[i]),
+                    else => @compileError("Incompatible type: " ++ @typeName(T)),
+                };
+            }
+
+            return v;
+        }
+
+        pub inline fn eq(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.eq(b.*),
+                .Int, .Float, .Vector, .Array => self.eq(init(b)),
+                .Struct => std.simd.countTrues(self.value == b.value) == VectorLength,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
+        }
+
+        pub inline fn lt(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.lt(b.*),
+                .Int, .Float, .Vector, .Array => self.lt(init(b)),
+                .Struct => std.simd.countTrues(self.value < b.value) == VectorLength,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
+        }
+
+        pub inline fn gt(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.gt(b.*),
+                .Int, .Float, .Vector, .Array => self.gt(init(b)),
+                .Struct => std.simd.countTrues(self.value > b.value) == VectorLength,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
+        }
+
+        pub inline fn lteq(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.lteq(b.*),
+                .Int, .Float, .Vector, .Array => self.lteq(init(b)),
+                .Struct => std.simd.countTrues(self.value <= b.value) == VectorLength,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
+        }
+
+        pub inline fn gteq(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.gteq(b.*),
+                .Int, .Float, .Vector, .Array => self.gteq(init(b)),
+                .Struct => std.simd.countTrues(self.value >= b.value) == VectorLength,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
         }
     };
 }

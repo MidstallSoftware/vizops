@@ -37,8 +37,8 @@ pub fn VectorConstraint(comptime Length: usize, comptime T: type) type {
 
         pub fn fits(self: Self, vec: Vector) bool {
             return std.simd.countTrues(@Vector(2, bool){
-                if (self.min) |m| std.simd.countTrues(vec.value >= m.value) == Length else true,
-                if (self.max) |m| std.simd.countTrues(vec.value <= m.value) == Length else true,
+                if (self.min) |m| vec.gteq(m) else true,
+                if (self.max) |m| vec.lteq(m) else true,
             }) == Length;
         }
     };

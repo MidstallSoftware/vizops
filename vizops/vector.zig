@@ -1,11 +1,26 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
+fn AutoVector(comptime L: usize, comptime T: type) type {
+    return switch (@typeInfo(T)) {
+        .Int, .Float => Vector(L, T),
+        .ComptimeInt => Vector(L, usize),
+        .ComptimeFloat => Vector(L, f64),
+        .Vector => |v| Vector(v.len, v.child),
+        .Pointer => |p| AutoVector(L, p.child),
+        .Array => |a| Vector(a.len, a.child),
+        .Struct => if (@hasDecl(T, "ElementType") and @hasDecl(T, "Length")) Vector(T.Length, T.ElementType) else @compileError("Incompatible type: " ++ @typeName(T)),
+        else => @compileError("Incompatible type: " ++ @typeName(T)),
+    };
+}
+
+pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
     if (VectorLength < 2) @compileError("Vector length cannot be less than two");
     return struct {
         const Self = @This();
 
+        pub const ElementType = _ElementType;
+        pub const Length = VectorLength;
         pub const Type = @Vector(VectorLength, ElementType);
         pub const ArrayType = [VectorLength]ElementType;
 
@@ -92,61 +107,50 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             return null;
         }
 
-        pub inline fn find(self: Self, func: *const fn (i: ElementType) ?ElementType) ?ElementType {
-            return findTyped(self, ElementType, func);
-        }
+        pub fn mix(self: Self, b: anytype, func: *const fn (i: ElementType, n: AutoVector(VectorLength, @TypeOf(b)).ElementType) AutoVector(VectorLength, @TypeOf(b)).ElementType) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@typeInfo(@TypeOf(b)) == .Pointer) return self.mix(b.*, func);
 
-        pub fn mixSizedReturn(self: Self, b: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(ReturnLength, ReturnType) {
-            comptime assert(ReturnLength <= VectorLength);
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            var r = ResultType.zero();
 
-            var c = Vector(ReturnLength, ReturnType).zero();
-            comptime var i: usize = 0;
-            inline while (i < ReturnLength) : (i += 1) {
-                const x = self.get(i);
-                const y = b.get(i);
-
-                // TODO: figure out how to use set() without getting a const error
-                c.value[i] = func(x, y);
+            switch (@typeInfo(@TypeOf(b))) {
+                .Int, .Float => {
+                    comptime var i: usize = 0;
+                    inline while (i < ResultType.Length) : (i += 1) {
+                        r.value[i] = func(self.value[i], b);
+                    }
+                },
+                .ComptimeInt => {
+                    comptime var i: usize = 0;
+                    inline while (i < ResultType.Length) : (i += 1) {
+                        r.value[i] = func(self.value[i], @as(usize, b));
+                    }
+                },
+                .ComptimeFloat => {
+                    comptime var i: usize = 0;
+                    inline while (i < ResultType.Length) : (i += 1) {
+                        r.value[i] = func(self.value[i], @as(f64, b));
+                    }
+                },
+                .Array, .Vector => {
+                    var i: usize = 0;
+                    while (i < b.len) : (i += 1) {
+                        r.value[i] = func(self.value[i], b);
+                    }
+                },
+                .Struct => {
+                    comptime var i: usize = 0;
+                    inline while (i < ResultType.Length) : (i += 1) {
+                        r.value[i] = func(self.value[i], b.value[i]);
+                    }
+                },
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
             }
-            return c;
+
+            return r;
         }
 
-        pub inline fn mixSized(self: Self, b: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType, n: ElementType) ElementType) Vector(ReturnLength, ElementType) {
-            return mixSizedReturn(self, b, ElementType, ReturnLength, func);
-        }
-
-        pub inline fn mixReturn(self: Self, b: Self, comptime ReturnType: type, func: *const fn (i: ElementType, n: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
-            return mixSizedReturn(self, b, ReturnType, VectorLength, func);
-        }
-
-        pub inline fn mix(self: Self, b: Self, func: *const fn (i: ElementType, n: ElementType) ElementType) Self {
-            return mixSizedReturn(self, b, ElementType, VectorLength, func);
-        }
-
-        pub fn mapSizedReturn(self: Self, comptime ReturnType: type, comptime ReturnLength: usize, func: *const fn (i: ElementType) ReturnType) Vector(ReturnType, ReturnLength) {
-            comptime assert(ReturnLength <= VectorLength);
-
-            var c = Vector(ReturnLength, ReturnType).zero();
-            comptime var i: usize = 0;
-            inline while (i < ReturnLength) : (i += 1) {
-                c.value[i] = func(self.get(i));
-            }
-            return c;
-        }
-
-        pub inline fn mapSized(self: Self, comptime ReturnLength: usize, func: *const fn (i: ElementType) ElementType) Vector(ReturnLength, ElementType) {
-            return mapSizedReturn(self, ElementType, ReturnLength, func);
-        }
-
-        pub inline fn mapReturn(self: Self, comptime ReturnType: type, func: *const fn (i: ElementType) ReturnType) Vector(VectorLength, ReturnType) {
-            return mapSizedReturn(self, ReturnType, VectorLength, func);
-        }
-
-        pub inline fn map(self: Self, func: *const fn (i: ElementType) ElementType) Self {
-            return mapSizedReturn(self, ElementType, VectorLength, func);
-        }
-
-        pub inline fn mul(self: Self, b: Self) Self {
+        pub inline fn mul(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x * y;
@@ -154,7 +158,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             }).func);
         }
 
-        pub inline fn div(self: Self, b: Self) Self {
+        pub inline fn div(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x / y;
@@ -162,7 +166,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             }).func);
         }
 
-        pub inline fn add(self: Self, b: Self) Self {
+        pub inline fn add(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x + y;
@@ -170,7 +174,7 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             }).func);
         }
 
-        pub inline fn sub(self: Self, b: Self) Self {
+        pub inline fn sub(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ElementType) ElementType {
                     return x - y;
@@ -178,9 +182,10 @@ pub fn Vector(comptime VectorLength: usize, comptime ElementType: type) type {
             }).func);
         }
 
-        pub inline fn mod(self: Self, b: Self) Self {
+        pub inline fn mod(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
             return mix(self, b, (struct {
-                fn func(x: ElementType, y: ElementType) ElementType {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x % y;
                 }
             }).func);

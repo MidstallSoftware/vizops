@@ -7,5 +7,10 @@ pub fn main() void {
         .sub(@as(f32, 2.0))
         .norm(@as(f32, 0.00000001));
 
-    std.debug.print("{any}\n", .{v});
+    std.debug.print("{any}\nFourCC:\n", .{v});
+
+    inline for (@typeInfo(vizops.fourcc.formats).Struct.decls) |d| {
+        const f = @field(vizops.fourcc.formats, d.name);
+        std.debug.print("\t{s} - 0x{x}\n", .{ d.name, f });
+    }
 }

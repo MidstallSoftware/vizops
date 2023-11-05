@@ -135,7 +135,7 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                 .Array, .Vector => {
                     var i: usize = 0;
                     while (i < b.len) : (i += 1) {
-                        r.value[i] = func(self.value[i], b);
+                        r.value[i] = func(self.value[i], b[i]);
                     }
                 },
                 .Struct => {
@@ -241,11 +241,13 @@ pub const Int8Vector = TypedVector(i8);
 pub const Int16Vector = TypedVector(i16);
 pub const Int32Vector = TypedVector(i32);
 pub const Int64Vector = TypedVector(i64);
+pub const IsizeVector = TypedVector(isize);
 
 pub const Uint8Vector = TypedVector(u8);
 pub const Uint16Vector = TypedVector(u16);
 pub const Uint32Vector = TypedVector(u32);
 pub const Uint64Vector = TypedVector(u64);
+pub const UsizeVector = TypedVector(usize);
 
 // Sized vectors
 
@@ -283,6 +285,10 @@ pub const Int64Vector2 = Int64Vector(2);
 pub const Int64Vector3 = Int64Vector(3);
 pub const Int64Vector4 = Int64Vector(4);
 
+pub const IsizeVector2 = IsizeVector(2);
+pub const IsizeVector3 = IsizeVector(3);
+pub const IsizeVector4 = IsizeVector(4);
+
 pub const Uint8Vector2 = Uint8Vector(2);
 pub const Uint8Vector3 = Uint8Vector(3);
 pub const Uint8Vector4 = Uint8Vector(4);
@@ -298,3 +304,7 @@ pub const Uint32Vector4 = Uint32Vector(4);
 pub const Uint64Vector2 = Uint64Vector(2);
 pub const Uint64Vector3 = Uint64Vector(3);
 pub const Uint64Vector4 = Uint64Vector(4);
+
+pub const UsizeVector2 = UsizeVector(2);
+pub const UsizeVector3 = UsizeVector(3);
+pub const UsizeVector4 = UsizeVector(4);

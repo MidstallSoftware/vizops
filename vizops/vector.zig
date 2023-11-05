@@ -372,8 +372,16 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             comptime var i: usize = 0;
             inline while (i < VectorLength) : (i += 1) {
                 v.value[i] = switch (@typeInfo(T)) {
-                    .Int => @intCast(self.value[i]),
-                    .Float => @floatCast(self.value[i]),
+                    .Int => switch (@typeInfo(ElementType)) {
+                        .Int => @intCast(self.value[i]),
+                        .Float => @intFromFloat(self.value[i]),
+                        else => @compileError("Incompatible type: " ++ @typeName(T)),
+                    },
+                    .Float => switch (@typeInfo(ElementType)) {
+                        .Int => @floatFromInt(self.value[i]),
+                        .Float => @floatCast(self.value[i]),
+                        else => @compileError("Incompatible type: " ++ @typeName(T)),
+                    },
                     else => @compileError("Incompatible type: " ++ @typeName(T)),
                 };
             }

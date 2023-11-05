@@ -190,6 +190,28 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                 }
             }).func);
         }
+
+        pub inline fn min(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return @min(x, y);
+                }
+            }).func);
+        }
+
+        pub inline fn max(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            return mix(self, b, (struct {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
+                    return @max(x, y);
+                }
+            }).func);
+        }
+
+        pub inline fn equal(self: Self, b: Self) bool {
+            return std.simd.countTrues(self.value == b.value) == VectorLength;
+        }
     };
 }
 

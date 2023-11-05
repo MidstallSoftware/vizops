@@ -52,11 +52,13 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             else => @compileError("Element type must be a float or integer"),
         };
 
-        value: Type = [_]ElementType{0} ** VectorLength,
+        value: Type = @splat(0),
 
-        pub inline fn init(value: Type) Self {
-            return .{
-                .value = value,
+        pub inline fn init(value: anytype) Self {
+            return switch (@typeInfo(@TypeOf(value))) {
+                .ComptimeInt, .Int, .ComptimeFloat, .Float, .Pointer => .{ .value = @splat(value) },
+                .Array, .Vector => .{ .value = value },
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(value))),
             };
         }
 
@@ -151,39 +153,63 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
         }
 
         pub inline fn mul(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value * b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value * b);
+
             return mix(self, b, (struct {
-                fn func(x: ElementType, y: ElementType) ElementType {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x * y;
                 }
             }).func);
         }
 
         pub inline fn div(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value / b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value / b);
+
             return mix(self, b, (struct {
-                fn func(x: ElementType, y: ElementType) ElementType {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x / y;
                 }
             }).func);
         }
 
         pub inline fn add(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value + b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value + b);
+
             return mix(self, b, (struct {
-                fn func(x: ElementType, y: ElementType) ElementType {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x + y;
                 }
             }).func);
         }
 
         pub inline fn sub(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value - b.value);
+
+            const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value - b);
+
             return mix(self, b, (struct {
-                fn func(x: ElementType, y: ElementType) ElementType {
+                fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x - y;
                 }
             }).func);
         }
 
         pub inline fn mod(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(self.value % b.value);
+
             const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(self.value % b);
+
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return x % y;
@@ -192,7 +218,11 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
         }
 
         pub inline fn min(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(@min(self.value, b.value));
+
             const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(@min(self.value, b));
+
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return @min(x, y);
@@ -201,7 +231,11 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
         }
 
         pub inline fn max(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            if (@TypeOf(b) == Self) return init(@max(self.value, b.value));
+
             const ResultType = AutoVector(VectorLength, @TypeOf(b));
+            if (ResultType.ElementType == ElementType and ResultType.Length == VectorLength and @typeInfo(@TypeOf(b)) == .Vector) return init(@max(self.value, b));
+
             return mix(self, b, (struct {
                 fn func(x: ElementType, y: ResultType.ElementType) ResultType.ElementType {
                     return @max(x, y);

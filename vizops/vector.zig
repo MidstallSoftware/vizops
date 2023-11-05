@@ -58,6 +58,7 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
             return switch (@typeInfo(@TypeOf(value))) {
                 .ComptimeInt, .Int, .ComptimeFloat, .Float, .Pointer => .{ .value = @splat(value) },
                 .Array, .Vector => .{ .value = value },
+                .Struct => value,
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(value))),
             };
         }
@@ -250,6 +251,44 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                     return @max(x, y);
                 }
             }).func);
+        }
+
+        pub inline fn len2(self: Self) ElementType {
+            return @reduce(.Add, self.mul(self).value);
+        }
+
+        pub inline fn len(self: Self) ElementType {
+            return std.math.sqrt(self.len2());
+        }
+
+        pub inline fn norm(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Int, .Float => self.div(init(self.len() + b)),
+                .Pointer => self.norm(b.*),
+                .Array, .Vector => |a| self.norm(Vector(a.len, a.child).init(a)),
+                .Struct => self.div(init(len()).add(b.value)),
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
+            };
+        }
+
+        pub inline fn dir(self: Self, b: anytype, c: anytype) AutoVector(VectorLength, @TypeOf(c)) {
+            return AutoVector(VectorLength, @TypeOf(b)).init(b).sub(self).norm(c);
+        }
+
+        pub inline fn dist2(self: Self, b: anytype) ElementType {
+            return AutoVector(VectorLength, @TypeOf(b)).init(b).sub(self).len2();
+        }
+
+        pub inline fn dist(self: Self, b: anytype) ElementType {
+            return std.math.sqrt(self.dist2(b));
+        }
+
+        pub inline fn lerp(self: Self, b: anytype, amount: anytype) AutoVector(VectorLength, @TypeOf(amount)) {
+            return self.mul(AutoVector(VectorLength, @TypeOf(amount)).init(1).sub(amount)).add(AutoVector(VectorLength, @TypeOf(b)).init(b).mul(amount));
+        }
+
+        pub inline fn dot(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)).ElementType {
+            return @reduce(.Add, self.mul(b).value);
         }
 
         pub inline fn shl(self: Self, b: anytype) AutoVector(VectorLength, @TypeOf(b)) {

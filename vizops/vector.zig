@@ -266,7 +266,7 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                 .Int, .Float => self.div(init(self.len() + b)),
                 .Pointer => self.norm(b.*),
                 .Array, .Vector => |a| self.norm(Vector(a.len, a.child).init(a)),
-                .Struct => self.div(init(len()).add(b.value)),
+                .Struct => self.div(init(self.len()).add(b.value)),
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
             };
         }

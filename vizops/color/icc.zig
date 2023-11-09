@@ -85,7 +85,7 @@ pub const TagData = union(enum) {
 
     pub const Error = error{ UnsupportedSignature, BadSignature };
 
-    pub fn read(alloc: Allocator, sig: [4]u8, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || Error)!TagData {
+    pub fn read(alloc: Allocator, sig: [4]u8, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set || Error)!TagData {
         inline for (@typeInfo(TagData).Union.fields) |f| {
             if (f.type == std.StringHashMap([]const u16)) {
                 if (std.mem.eql(u8, &sig, f.name)) {
@@ -117,6 +117,7 @@ pub const TagData = union(enum) {
                         for (buf) |*c| c.* = try reader.readInt(u16, .Big);
 
                         records.putAssumeCapacity(key, buf);
+                        assert(try std.unicode.utf16CountCodepoints(buf) == @divExact(record.len, @sizeOf(u16)));
                     }
 
                     if (std.mem.eql(u8, f.name, "cprt")) {
@@ -224,7 +225,7 @@ hdr: Header,
 tags: std.ArrayList(TagEntry),
 tagdata: std.ArrayList(TagData),
 
-pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || Header.Error || TagEntry.Error || TagData.Error)!*Icc {
+pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set || Header.Error || TagEntry.Error || TagData.Error)!*Icc {
     const self = try alloc.create(Icc);
     errdefer alloc.destroy(self);
 

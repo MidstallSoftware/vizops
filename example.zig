@@ -11,6 +11,12 @@ pub fn main() !void {
 
     inline for (@typeInfo(vizops.fourcc.formats).Struct.decls) |d| {
         const f = @field(vizops.fourcc.formats, d.name);
-        std.debug.print("\t{s} - {!any} - 0x{x}\n", .{ d.name, vizops.fourcc.Value.decode(f), f });
+        std.debug.print("\t{s} - {!any} - 0x{x}", .{ d.name, vizops.fourcc.Value.decode(f), f });
+
+        if (vizops.fourcc.Value.decode(f) catch null) |a| {
+            std.debug.print(" - {}\n", .{a.width()});
+        } else {
+            std.debug.print("\n", .{});
+        }
     }
 }

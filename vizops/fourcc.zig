@@ -52,7 +52,13 @@ pub const Value = union(enum) {
                         else => error.InvalidFormat,
                     } else error.InvalidFormat,
                 },
-                else => if (std.ascii.isDigit(s[2]) and std.mem.indexOf(u8, s[3..4], " ") == null) blk: {
+                'X' => switch (s[2]) {
+                    'A' => .{
+                        .rgba = @splat(try std.fmt.parseInt(u8, s[3..4], 10)),
+                    },
+                    else => error.InvalidFormat,
+                },
+                else => if (std.ascii.isDigit(s[2]) and std.ascii.isDigit(s[3])) blk: {
                     const x = try std.fmt.parseInt(u8, s[3..4], 10);
                     break :blk switch (x) {
                         32 => .{
@@ -65,6 +71,12 @@ pub const Value = union(enum) {
                             .rgb = .{ 5, 6, 5 },
                         },
                         else => error.InvalidFormat,
+                    };
+                } else if (std.ascii.isDigit(s[1]) and std.ascii.isUpper(s[2]) and std.ascii.isDigit(s[3])) blk: {
+                    const color = try std.fmt.parseInt(u8, s[1..2], 10);
+                    const alpha = try std.fmt.parseInt(u8, s[3..4], 10);
+                    break :blk .{
+                        .rgba = .{ color, color + ((alpha - color) / 3), color, alpha },
                     };
                 } else .{
                     .r = try std.fmt.parseInt(u8, s[1..][0..(std.mem.indexOf(u8, s[1..], " ") orelse s[1..].len)], 10),
@@ -99,6 +111,16 @@ pub const Value = union(enum) {
                 else => error.InvalidFormat,
             },
             else => error.InvalidFormat,
+        };
+    }
+
+    pub fn width(self: Value) usize {
+        return switch (self) {
+            .c, .d => 8,
+            .r => |v| if (v > 8) 16 else 8,
+            .rg, .gr => |v| @reduce(.Add, v),
+            .rgb, .bgr, .xrgb, .yuv => |v| @reduce(.Add, v),
+            .argb, .rgba, .bgra, .abgr => |v| @reduce(.Add, v),
         };
     }
 };

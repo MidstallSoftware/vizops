@@ -1,6 +1,108 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+pub const Value = union(enum) {
+    c: u8,
+    d: u8,
+    r: u8,
+    rg: @Vector(2, u8),
+    gr: @Vector(2, u8),
+    rgb: @Vector(3, u8),
+    bgr: @Vector(3, u8),
+    xrgb: @Vector(3, u8),
+    argb: @Vector(4, u8),
+    rgba: @Vector(4, u8),
+    bgra: @Vector(4, u8),
+    abgr: @Vector(4, u8),
+    yuv: @Vector(3, u8),
+
+    pub fn decode(v: u32) (std.fmt.ParseIntError || error{InvalidFormat})!Value {
+        var s: [4]u8 = undefined;
+        std.mem.writeInt(u32, &s, v, builtin.cpu.arch.endian());
+        return switch (s[0]) {
+            'C', 'D' => blk: {
+                const i = try std.fmt.parseInt(u8, s[1..][0..(std.mem.indexOf(u8, s[1..], " ") orelse return error.InvalidFormat)], 10);
+                break :blk if (s[0] == 'C') .{ .c = i } else .{ .d = i };
+            },
+            'R' => switch (s[1]) {
+                'G' => switch (s[2]) {
+                    'B' => blk: {
+                        const i = try std.fmt.parseInt(u8, s[3..4], 10);
+                        break :blk .{
+                            .rgb = .{
+                                (i / 2) - 1,
+                                (i / 2) - 1,
+                                i - (i / 2) - 2,
+                            },
+                        };
+                    },
+                    else => if (std.ascii.isDigit(s[2])) switch (try std.fmt.parseInt(u8, s[2..][0..(std.mem.indexOf(u8, s[2..], " ") orelse s[2..].len)], 10)) {
+                        88 => .{
+                            .rg = @splat(8),
+                        },
+                        32 => .{
+                            .rg = @splat(16),
+                        },
+                        24 => .{
+                            .rgb = @splat(8),
+                        },
+                        16 => .{
+                            .rgb = .{ 5, 6, 5 },
+                        },
+                        else => error.InvalidFormat,
+                    } else error.InvalidFormat,
+                },
+                else => if (std.ascii.isDigit(s[2]) and std.mem.indexOf(u8, s[3..4], " ") == null) blk: {
+                    const x = try std.fmt.parseInt(u8, s[3..4], 10);
+                    break :blk switch (x) {
+                        32 => .{
+                            .rg = @splat(x / 2),
+                        },
+                        24 => .{
+                            .rgb = @splat(x / 3),
+                        },
+                        16 => .{
+                            .rgb = .{ 5, 6, 5 },
+                        },
+                        else => error.InvalidFormat,
+                    };
+                } else .{
+                    .r = try std.fmt.parseInt(u8, s[1..][0..(std.mem.indexOf(u8, s[1..], " ") orelse s[1..].len)], 10),
+                },
+            },
+            'B' => switch (s[1]) {
+                'G' => switch (s[2]) {
+                    'R' => blk: {
+                        const x = try std.fmt.parseInt(u8, s[3..4], 10);
+                        break :blk .{
+                            .bgr = .{
+                                (x / 2) - 1,
+                                (x / 2) - 1,
+                                x - (x / 2) - 2,
+                            },
+                        };
+                    },
+                    else => error.InvalidFormat,
+                },
+                else => error.InvalidFormat,
+            },
+            'G' => switch (s[1]) {
+                'R' => switch (try std.fmt.parseInt(u8, s[2..], 10)) {
+                    88 => .{
+                        .gr = @splat(8),
+                    },
+                    32 => .{
+                        .gr = @splat(16),
+                    },
+                    else => error.InvalidFormat,
+                },
+                else => error.InvalidFormat,
+            },
+            else => error.InvalidFormat,
+        };
+    }
+};
+
 pub inline fn code(s: *const [4:0]u8) u32 {
     return std.mem.readInt(u32, s, builtin.cpu.arch.endian());
 }

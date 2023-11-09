@@ -1,8 +1,7 @@
 const std = @import("std");
 
-pub const format = @import("color/format.zig");
-pub const types = @import("color/types.zig");
+pub const icc = @import("color/icc.zig");
 
 test {
-    _ = format;
+    _ = icc;
 }

@@ -9,9 +9,9 @@ pub fn main() !void {
 
     std.debug.print("{any}\n", .{v});
 
-    const c = vizops.color.types.xyY(f32){
-        .value = @splat(5.0),
-    };
+    var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
+    const icc = try vizops.color.icc.read(std.heap.page_allocator, buf.reader());
+    defer icc.deinit();
 
-    std.debug.print("{} {} {}\n", .{ c.convert(.lab), c.convert(.xyz), c.convert(.lch) });
+    std.debug.print("{} {}\n", .{ icc, buf.pos });
 }

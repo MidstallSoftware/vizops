@@ -10,8 +10,13 @@ pub fn main() !void {
     std.debug.print("{any}\n", .{v});
 
     var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
-    const icc = try vizops.color.icc.read(std.heap.page_allocator, buf.reader());
+    const icc = vizops.color.icc.read(std.heap.page_allocator, buf.reader()) catch |err| {
+        std.debug.print("Buffer was at {}\n", .{buf.pos});
+        return err;
+    };
     defer icc.deinit();
 
     std.debug.print("{} {}\n", .{ icc, buf.pos });
+
+    for (icc.tagdata.items) |item| std.debug.print("{}\n", .{item});
 }

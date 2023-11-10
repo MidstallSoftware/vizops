@@ -3,34 +3,10 @@ const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
 const UnicodeError = @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set;
+const utils = @import("../utils.zig");
+const readStructBig = utils.readStructBig;
+const UnicodeHashMap = utils.Unicode16HashMap;
 const Icc = @This();
-
-fn byteSwapAllFields(comptime S: type, ptr: *S) void {
-    if (@typeInfo(S) != .Struct) @compileError("byteSwapAllFields expects a struct as the first argument");
-    inline for (std.meta.fields(S)) |f| {
-        switch (@typeInfo(f.type)) {
-            .Struct => byteSwapAllFields(f.type, &@field(ptr, f.name)),
-            .Array => {
-                const len = @field(ptr, f.name).len;
-                var i: usize = 0;
-                while (i < len) : (i += 1) {
-                    @field(ptr, f.name)[i] = @byteSwap(@field(ptr, f.name)[i]);
-                }
-            },
-            else => {
-                @field(ptr, f.name) = @byteSwap(@field(ptr, f.name));
-            },
-        }
-    }
-}
-
-fn readStructBig(reader: anytype, comptime T: type) !T {
-    var res = try reader.readStruct(T);
-    if (builtin.cpu.arch.endian() != std.builtin.Endian.big) {
-        byteSwapAllFields(T, &res);
-    }
-    return res;
-}
 
 pub const DeviceClasses = struct {
     pub const input = "scnr";
@@ -90,9 +66,9 @@ pub const DateTime = extern struct {
 };
 
 pub const XyzNumber = extern struct {
-    x: u32,
-    y: u32,
-    z: u32,
+    x: i32,
+    y: i32,
+    z: i32,
 };
 
 pub const XyzType = extern struct {
@@ -120,6 +96,42 @@ pub const ParametricCurveType = extern struct {
     reserved1: u16,
 };
 
+pub const DictType = extern struct {
+    sig: [4]u8,
+    reserved: u32,
+    count: u32,
+    length: u32,
+};
+
+pub const Dict16NvRecordType = extern struct {
+    nameOffset: u32,
+    nameSize: u32,
+    valueOffset: u32,
+    valueSize: u32,
+};
+
+pub const Dict24NvRecordType = extern struct {
+    nameOffset: u32,
+    nameSize: u32,
+    valueOffset: u32,
+    valueSize: u32,
+
+    displayNameOffset: u32,
+    displayNameSize: u32,
+};
+
+pub const Dict32NvRecordType = extern struct {
+    nameOffset: u32,
+    nameSize: u32,
+    valueOffset: u32,
+    valueSize: u32,
+
+    displayNameOffset: u32,
+    displayNameSize: u32,
+    displayValueOffset: u32,
+    displayValueSize: u32,
+};
+
 pub const ParametricCurve = struct {
     type: u16,
     params: []i32,
@@ -138,18 +150,34 @@ pub const Chromaticity = struct {
     }
 };
 
+pub const Trc = union(enum) {
+    curve: void,
+    param: ParametricCurve,
+
+    pub fn deinit(self: Trc, alloc: Allocator) void {
+        switch (self) {
+            .curve => {},
+            .param => |param| param.deinit(alloc),
+        }
+    }
+};
+
 pub const TagData = union(enum) {
     cprt: std.StringHashMap([]const u16),
     desc: std.StringHashMap([]const u16),
-    wtpt: []@Vector(3, u32),
-    rXYZ: []@Vector(3, u32),
-    bXYZ: []@Vector(3, u32),
-    gXYZ: []@Vector(3, u32),
+    dmdd: std.StringHashMap([]const u16),
+    wtpt: []@Vector(3, i32),
+    rXYZ: []@Vector(3, i32),
+    bXYZ: []@Vector(3, i32),
+    gXYZ: []@Vector(3, i32),
     chad: []i32,
+    rTRC: Trc,
+    bTRC: Trc,
     para: ParametricCurve,
     chrm: Chromaticity,
+    meta: UnicodeHashMap([]const u16),
 
-    pub const Error = error{ UnsupportedSignature, BadSignature };
+    pub const Error = error{ UnsupportedSignature, BadSignature, InvalidSize };
 
     pub fn read(alloc: Allocator, tag: TagEntry, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || UnicodeError || Error)!TagData {
         inline for (@typeInfo(TagData).Union.fields) |f| {
@@ -191,15 +219,17 @@ pub const TagData = union(enum) {
                             return .{ .cprt = records };
                         } else if (std.mem.eql(u8, f.name, "desc")) {
                             return .{ .desc = records };
+                        } else if (std.mem.eql(u8, f.name, "dmdd")) {
+                            return .{ .dmdd = records };
                         }
                         unreachable;
                     },
-                    []@Vector(3, u32) => {
+                    []@Vector(3, i32) => {
                         const tbl = try readStructBig(reader, XyzType);
                         if (!std.mem.eql(u8, &tbl.sig, "XYZ ")) return error.BadSignature;
 
                         const count = @divExact(tag.size - @sizeOf(XyzType), @sizeOf(XyzNumber));
-                        var list = try alloc.alloc(@Vector(3, u32), count);
+                        var list = try alloc.alloc(@Vector(3, i32), count);
                         errdefer alloc.free(list);
 
                         var i: usize = 0;
@@ -237,19 +267,178 @@ pub const TagData = union(enum) {
                         }
                         unreachable;
                     },
+                    Trc => {
+                        var sig: [4]u8 = undefined;
+                        _ = try reader.read(&sig);
+
+                        if (builtin.cpu.arch.endian() != std.builtin.Endian.big) {
+                            comptime var i: usize = 0;
+                            inline while (i < 4) : (i += 1) {
+                                sig[i] = @byteSwap(sig[i]);
+                            }
+                        }
+
+                        var result: Trc = undefined;
+                        if (std.mem.eql(u8, &sig, "para")) {
+                            try reader.skipBytes(@sizeOf(u32), .{});
+                            const kind = try reader.readInt(u16, .big);
+                            try reader.skipBytes(@sizeOf(u16), .{});
+
+                            const count = @divExact(tag.size - @sizeOf(ParametricCurveType), @sizeOf(i32));
+
+                            var list = try alloc.alloc(i32, count);
+                            errdefer alloc.free(list);
+
+                            var i: usize = 0;
+                            while (i < count) : (i += 1) {
+                                list[i] = try reader.readInt(i32, .big);
+                            }
+
+                            result = .{
+                                .param = .{
+                                    .type = kind,
+                                    .params = list,
+                                },
+                            };
+                        } else if (std.mem.eql(u8, &sig, "curv")) {
+                            try reader.skipBytes(@sizeOf(u32), .{});
+                            const count = try reader.readInt(u32, .big);
+                            std.debug.print("{}\n", .{count});
+                        } else {
+                            return error.BadSignature;
+                        }
+
+                        if (std.mem.eql(u8, f.name, "rTRC")) {
+                            return .{ .rTRC = result };
+                        } else if (std.mem.eql(u8, f.name, "bTRC")) {
+                            return .{ .bTRC = result };
+                        }
+                        unreachable;
+                    },
                     ParametricCurve => {
                         const tbl = try readStructBig(reader, ParametricCurveType);
                         if (!std.mem.eql(u8, &tbl.sig, "para")) return error.BadSignature;
 
-                        const count = @divExact(tag.size - @sizeOf(ParametricCurveType), @sizeOf([2]u32));
-                        std.debug.print("{}\n", .{count});
+                        const count = @divExact(tag.size - @sizeOf(ParametricCurveType), @sizeOf(i32));
+
+                        var list = try alloc.alloc(i32, count);
+                        errdefer alloc.free(list);
+
+                        var i: usize = 0;
+                        while (i < count) : (i += 1) {
+                            list[i] = try reader.readInt(i32, .big);
+                        }
+
+                        const result = ParametricCurve{
+                            .type = tbl.type,
+                            .params = list,
+                        };
+
+                        if (std.mem.eql(u8, f.name, "para")) {
+                            return .{ .para = result };
+                        }
+                        unreachable;
                     },
                     Chromaticity => {
                         const tbl = try readStructBig(reader, ChromaticityType);
                         if (!std.mem.eql(u8, &tbl.sig, "chrm")) return error.BadSignature;
 
                         const count = @divExact(tag.size - @sizeOf(ChromaticityType), @sizeOf([2]u32));
-                        std.debug.print("{}\n", .{count});
+
+                        var list = try alloc.alloc(@Vector(2, u32), count);
+                        errdefer alloc.free(list);
+
+                        var i: usize = 0;
+                        while (i < count) : (i += 1) {
+                            const x = try reader.readInt(u32, .big);
+                            const y = try reader.readInt(u32, .big);
+
+                            list[i] = .{ x, y };
+                        }
+
+                        const result = Chromaticity{
+                            .phoscol = tbl.phoscol,
+                            .channels = list,
+                        };
+
+                        if (std.mem.eql(u8, f.name, "chrm")) {
+                            return .{ .chrm = result };
+                        }
+                        unreachable;
+                    },
+                    UnicodeHashMap([]const u16) => {
+                        const tbl = try readStructBig(reader, DictType);
+                        if (!std.mem.eql(u8, &tbl.sig, "dict")) return error.BadSignature;
+
+                        var reclist = try std.ArrayList(Dict32NvRecordType).initCapacity(alloc, tbl.count);
+                        errdefer reclist.deinit();
+
+                        var i: usize = 0;
+                        while (i < tbl.count) : (i += 1) {
+                            switch (tbl.length) {
+                                16 => {
+                                    const record = try readStructBig(reader, Dict16NvRecordType);
+                                    reclist.appendAssumeCapacity(.{
+                                        .nameOffset = record.nameOffset,
+                                        .nameSize = record.nameSize,
+                                        .valueOffset = record.valueOffset,
+                                        .valueSize = record.valueSize,
+                                        .displayNameOffset = 0,
+                                        .displayNameSize = 0,
+                                        .displayValueOffset = 0,
+                                        .displayValueSize = 0,
+                                    });
+                                },
+                                24 => {
+                                    const record = try readStructBig(reader, Dict24NvRecordType);
+                                    reclist.appendAssumeCapacity(.{
+                                        .nameOffset = record.nameOffset,
+                                        .nameSize = record.nameSize,
+                                        .valueOffset = record.valueOffset,
+                                        .valueSize = record.valueSize,
+                                        .displayNameOffset = record.displayNameOffset,
+                                        .displayNameSize = record.displayNameSize,
+                                        .displayValueOffset = 0,
+                                        .displayValueSize = 0,
+                                    });
+                                },
+                                32 => {
+                                    const record = try readStructBig(reader, Dict32NvRecordType);
+                                    reclist.appendAssumeCapacity(record);
+                                },
+                                else => return Error.InvalidSize,
+                            }
+                        }
+
+                        var records = UnicodeHashMap([]const u16).init(alloc);
+                        errdefer records.deinit();
+                        try records.ensureTotalCapacity(tbl.count);
+
+                        i = 0;
+                        while (i < tbl.count) : (i += 1) {
+                            const record = reclist.items[i];
+
+                            var name = try alloc.alloc(u16, @divExact(record.nameSize, @sizeOf(u16)));
+                            errdefer alloc.free(name);
+                            for (name) |*c| c.* = try reader.readInt(u16, .big);
+                            assert(try std.unicode.utf16CountCodepoints(name) == @divExact(record.nameSize, @sizeOf(u16)));
+
+                            var value = try alloc.alloc(u16, @divExact(record.valueSize, @sizeOf(u16)));
+                            errdefer alloc.free(value);
+                            for (value) |*c| c.* = try reader.readInt(u16, .big);
+                            assert(try std.unicode.utf16CountCodepoints(value) == @divExact(record.valueSize, @sizeOf(u16)));
+
+                            try reader.skipBytes(record.displayNameSize + record.displayValueSize, .{});
+
+                            records.putAssumeCapacity(name, value);
+                        }
+
+                        try reader.skipBytes(2, .{});
+
+                        if (std.mem.eql(u8, f.name, "meta")) {
+                            return .{ .meta = records };
+                        }
+                        unreachable;
                     },
                     else => @compileError("Unrecogized type: " ++ @typeName(f.type)),
                 }
@@ -260,11 +449,13 @@ pub const TagData = union(enum) {
 
     pub fn deinit(self: TagData, alloc: Allocator) void {
         switch (self) {
-            .cprt, .desc => |unicode| @constCast(&unicode).deinit(),
+            .cprt, .desc, .dmdd => |unicode| @constCast(&unicode).deinit(),
             .wtpt, .rXYZ, .bXYZ, .gXYZ => |xyz| alloc.free(xyz),
             .chad => |sf32| alloc.free(sf32),
+            .rTRC, .bTRC => |trc| trc.deinit(alloc),
             .para => |para| para.deinit(alloc),
             .chrm => |chrm| chrm.deinit(alloc),
+            .meta => |dict| @constCast(&dict).deinit(),
         }
     }
 };
@@ -352,20 +543,18 @@ pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Al
 
     for (self.tags.items, 0..) |t, i| {
         if (t.size == 0 or t.off == 0) continue;
-        if (t.size + t.off < @sizeOf(Header)) continue;
+        if (t.size + t.off > self.hdr.size) continue;
+        if (t.size + t.off < t.off) continue;
 
-        var linked = false;
-        for (self.tags.items, 0..) |t2, x| {
-            if (x == i) continue;
-
+        var skip = false;
+        for (self.tags.items[0..i]) |t2| {
             if (t2.off == t.off and t2.size == t.size) {
-                linked = true;
+                skip = true;
                 break;
             }
         }
 
-        if (linked) continue;
-
+        if (skip) continue;
         try self.tagdata.append(try TagData.read(alloc, t, reader));
     }
     return self;
@@ -382,6 +571,9 @@ pub fn deinit(self: *Icc) void {
 }
 
 test "Check size" {
+    try std.testing.expectEqual(16, @sizeOf(Dict16NvRecordType));
+    try std.testing.expectEqual(24, @sizeOf(Dict24NvRecordType));
+    try std.testing.expectEqual(32, @sizeOf(Dict32NvRecordType));
     try std.testing.expectEqual(16, @sizeOf(LocaleUnicode));
     try std.testing.expectEqual(12, @sizeOf(LocaleUnicodeRecord));
 

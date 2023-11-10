@@ -25,7 +25,7 @@ fn byteSwapAllFields(comptime S: type, ptr: *S) void {
 
 fn readStructBig(reader: anytype, comptime T: type) !T {
     var res = try reader.readStruct(T);
-    if (builtin.cpu.arch.endian() != std.builtin.Endian.Big) {
+    if (builtin.cpu.arch.endian() != std.builtin.Endian.big) {
         byteSwapAllFields(T, &res);
     }
     return res;
@@ -51,7 +51,7 @@ pub const TagEntry = extern struct {
     pub const Error = error{TooManyTags};
 
     pub fn readAll(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || Error)!std.ArrayList(TagEntry) {
-        const count = try reader.readInt(u32, .Big);
+        const count = try reader.readInt(u32, .big);
         if (count > 100) return Error.TooManyTags;
 
         var list = try std.ArrayList(TagEntry).initCapacity(alloc, count);
@@ -114,7 +114,7 @@ pub const TagData = union(enum) {
                         var buf = try alloc.alloc(u16, @divExact(record.len, @sizeOf(u16)));
                         errdefer alloc.free(buf);
 
-                        for (buf) |*c| c.* = try reader.readInt(u16, .Big);
+                        for (buf) |*c| c.* = try reader.readInt(u16, .big);
 
                         records.putAssumeCapacity(key, buf);
                         assert(try std.unicode.utf16CountCodepoints(buf) == @divExact(record.len, @sizeOf(u16)));

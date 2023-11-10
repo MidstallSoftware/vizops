@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
 const builtin = @import("builtin");
+const UnicodeError = @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set;
 const Icc = @This();
 
 fn byteSwapAllFields(comptime S: type, ptr: *S) void {
@@ -79,67 +80,6 @@ pub const LocaleUnicodeRecord = extern struct {
     off: u32,
 };
 
-pub const TagData = union(enum) {
-    cprt: std.StringHashMap([]const u16),
-    desc: std.StringHashMap([]const u16),
-
-    pub const Error = error{ UnsupportedSignature, BadSignature };
-
-    pub fn read(alloc: Allocator, sig: [4]u8, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set || Error)!TagData {
-        inline for (@typeInfo(TagData).Union.fields) |f| {
-            if (f.type == std.StringHashMap([]const u16)) {
-                if (std.mem.eql(u8, &sig, f.name)) {
-                    const tbl = try readStructBig(reader, LocaleUnicode);
-                    if (!std.mem.eql(u8, &tbl.sig, "mluc")) return error.BadSignature;
-
-                    var reclist = try std.ArrayList(LocaleUnicodeRecord).initCapacity(alloc, tbl.count);
-                    defer reclist.deinit();
-
-                    var i: usize = 0;
-                    while (i < tbl.count) : (i += 1) {
-                        reclist.appendAssumeCapacity(try readStructBig(reader, LocaleUnicodeRecord));
-                    }
-
-                    var records = std.StringHashMap([]const u16).init(alloc);
-                    errdefer records.deinit();
-                    try records.ensureTotalCapacity(tbl.count);
-
-                    i = 0;
-                    while (i < tbl.count) : (i += 1) {
-                        const record = reclist.items[i];
-
-                        const key = try std.fmt.allocPrint(alloc, "{s}_{s}", .{ @as([2]u8, record.lang), @as([2]u8, record.country) });
-                        errdefer alloc.free(key);
-
-                        var buf = try alloc.alloc(u16, @divExact(record.len, @sizeOf(u16)));
-                        errdefer alloc.free(buf);
-
-                        for (buf) |*c| c.* = try reader.readInt(u16, .big);
-
-                        records.putAssumeCapacity(key, buf);
-                        assert(try std.unicode.utf16CountCodepoints(buf) == @divExact(record.len, @sizeOf(u16)));
-                    }
-
-                    if (std.mem.eql(u8, f.name, "cprt")) {
-                        return .{ .cprt = records };
-                    } else if (std.mem.eql(u8, f.name, "desc")) {
-                        return .{ .desc = records };
-                    }
-                    unreachable;
-                }
-            }
-        }
-        return Error.UnsupportedSignature;
-    }
-
-    pub fn deinit(self: TagData, alloc: Allocator) void {
-        _ = alloc;
-        switch (self) {
-            .cprt, .desc => |unicode| @constCast(&unicode).deinit(),
-        }
-    }
-};
-
 pub const DateTime = extern struct {
     year: u16,
     month: u16,
@@ -149,10 +89,184 @@ pub const DateTime = extern struct {
     seconds: u16,
 };
 
-pub const Xyz = extern struct {
+pub const XyzNumber = extern struct {
     x: u32,
     y: u32,
     z: u32,
+};
+
+pub const XyzType = extern struct {
+    sig: [4]u8,
+    reserved: u32,
+};
+
+pub const Fixed16ArrayType = extern struct {
+    sig: [4]u8,
+    reserved: u32,
+};
+
+pub const ChromaticityType = extern struct {
+    sig: [4]u8,
+    reserved: u32,
+    channels: u16,
+    phoscol: u16,
+    c1: [2]u32,
+};
+
+pub const ParametricCurveType = extern struct {
+    sig: [4]u8,
+    reserved0: u32,
+    type: u16,
+    reserved1: u16,
+};
+
+pub const ParametricCurve = struct {
+    type: u16,
+    params: []i32,
+
+    pub fn deinit(self: ParametricCurve, alloc: Allocator) void {
+        alloc.free(self.params);
+    }
+};
+
+pub const Chromaticity = struct {
+    phoscol: u16,
+    channels: []@Vector(2, u32),
+
+    pub fn deinit(self: Chromaticity, alloc: Allocator) void {
+        alloc.free(self.channels);
+    }
+};
+
+pub const TagData = union(enum) {
+    cprt: std.StringHashMap([]const u16),
+    desc: std.StringHashMap([]const u16),
+    wtpt: []@Vector(3, u32),
+    rXYZ: []@Vector(3, u32),
+    bXYZ: []@Vector(3, u32),
+    gXYZ: []@Vector(3, u32),
+    chad: []i32,
+    para: ParametricCurve,
+    chrm: Chromaticity,
+
+    pub const Error = error{ UnsupportedSignature, BadSignature };
+
+    pub fn read(alloc: Allocator, tag: TagEntry, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || UnicodeError || Error)!TagData {
+        inline for (@typeInfo(TagData).Union.fields) |f| {
+            if (std.mem.eql(u8, &tag.sig, f.name)) {
+                switch (f.type) {
+                    std.StringHashMap([]const u16) => {
+                        const tbl = try readStructBig(reader, LocaleUnicode);
+                        if (!std.mem.eql(u8, &tbl.sig, "mluc")) return error.BadSignature;
+
+                        var reclist = try std.ArrayList(LocaleUnicodeRecord).initCapacity(alloc, tbl.count);
+                        defer reclist.deinit();
+
+                        var i: usize = 0;
+                        while (i < tbl.count) : (i += 1) {
+                            reclist.appendAssumeCapacity(try readStructBig(reader, LocaleUnicodeRecord));
+                        }
+
+                        var records = std.StringHashMap([]const u16).init(alloc);
+                        errdefer records.deinit();
+                        try records.ensureTotalCapacity(tbl.count);
+
+                        i = 0;
+                        while (i < tbl.count) : (i += 1) {
+                            const record = reclist.items[i];
+
+                            const key = try std.fmt.allocPrint(alloc, "{s}_{s}", .{ @as([2]u8, record.lang), @as([2]u8, record.country) });
+                            errdefer alloc.free(key);
+
+                            var buf = try alloc.alloc(u16, @divExact(record.len, @sizeOf(u16)));
+                            errdefer alloc.free(buf);
+
+                            for (buf) |*c| c.* = try reader.readInt(u16, .big);
+
+                            records.putAssumeCapacity(key, buf);
+                            assert(try std.unicode.utf16CountCodepoints(buf) == @divExact(record.len, @sizeOf(u16)));
+                        }
+
+                        if (std.mem.eql(u8, f.name, "cprt")) {
+                            return .{ .cprt = records };
+                        } else if (std.mem.eql(u8, f.name, "desc")) {
+                            return .{ .desc = records };
+                        }
+                        unreachable;
+                    },
+                    []@Vector(3, u32) => {
+                        const tbl = try readStructBig(reader, XyzType);
+                        if (!std.mem.eql(u8, &tbl.sig, "XYZ ")) return error.BadSignature;
+
+                        const count = @divExact(tag.size - @sizeOf(XyzType), @sizeOf(XyzNumber));
+                        var list = try alloc.alloc(@Vector(3, u32), count);
+                        errdefer alloc.free(list);
+
+                        var i: usize = 0;
+                        while (i < count) : (i += 1) {
+                            const entry = try readStructBig(reader, XyzNumber);
+                            list[i] = .{ entry.x, entry.y, entry.z };
+                        }
+
+                        if (std.mem.eql(u8, f.name, "wtpt")) {
+                            return .{ .wtpt = list };
+                        } else if (std.mem.eql(u8, f.name, "rXYZ")) {
+                            return .{ .rXYZ = list };
+                        } else if (std.mem.eql(u8, f.name, "bXYZ")) {
+                            return .{ .bXYZ = list };
+                        } else if (std.mem.eql(u8, f.name, "gXYZ")) {
+                            return .{ .gXYZ = list };
+                        }
+                        unreachable;
+                    },
+                    []i32 => {
+                        const tbl = try readStructBig(reader, Fixed16ArrayType);
+                        if (!std.mem.eql(u8, &tbl.sig, "sf32")) return error.BadSignature;
+
+                        const count = @divExact(tag.size - @sizeOf(Fixed16ArrayType), @sizeOf(i32));
+                        var list = try alloc.alloc(i32, count);
+                        errdefer alloc.free(list);
+
+                        var i: usize = 0;
+                        while (i < count) : (i += 1) {
+                            list[i] = try reader.readInt(i32, .big);
+                        }
+
+                        if (std.mem.eql(u8, f.name, "chad")) {
+                            return .{ .chad = list };
+                        }
+                        unreachable;
+                    },
+                    ParametricCurve => {
+                        const tbl = try readStructBig(reader, ParametricCurveType);
+                        if (!std.mem.eql(u8, &tbl.sig, "para")) return error.BadSignature;
+
+                        const count = @divExact(tag.size - @sizeOf(ParametricCurveType), @sizeOf([2]u32));
+                        std.debug.print("{}\n", .{count});
+                    },
+                    Chromaticity => {
+                        const tbl = try readStructBig(reader, ChromaticityType);
+                        if (!std.mem.eql(u8, &tbl.sig, "chrm")) return error.BadSignature;
+
+                        const count = @divExact(tag.size - @sizeOf(ChromaticityType), @sizeOf([2]u32));
+                        std.debug.print("{}\n", .{count});
+                    },
+                    else => @compileError("Unrecogized type: " ++ @typeName(f.type)),
+                }
+            }
+        }
+        return Error.UnsupportedSignature;
+    }
+
+    pub fn deinit(self: TagData, alloc: Allocator) void {
+        switch (self) {
+            .cprt, .desc => |unicode| @constCast(&unicode).deinit(),
+            .wtpt, .rXYZ, .bXYZ, .gXYZ => |xyz| alloc.free(xyz),
+            .chad => |sf32| alloc.free(sf32),
+            .para => |para| para.deinit(alloc),
+            .chrm => |chrm| chrm.deinit(alloc),
+        }
+    }
 };
 
 pub const Profile = extern struct {
@@ -178,7 +292,7 @@ pub const Header = extern struct {
     mode: u32,
     attribs: u64,
     intent: u32,
-    illuminant: Xyz,
+    illuminant: XyzNumber,
     creator: u32,
     profile: Profile,
 
@@ -225,7 +339,7 @@ hdr: Header,
 tags: std.ArrayList(TagEntry),
 tagdata: std.ArrayList(TagData),
 
-pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || @typeInfo(@typeInfo(@TypeOf(std.unicode.utf16CountCodepoints)).Fn.return_type.?).ErrorUnion.error_set || Header.Error || TagEntry.Error || TagData.Error)!*Icc {
+pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Allocator.Error || UnicodeError || Header.Error || TagEntry.Error || TagData.Error)!*Icc {
     const self = try alloc.create(Icc);
     errdefer alloc.destroy(self);
 
@@ -233,11 +347,26 @@ pub fn read(alloc: Allocator, reader: anytype) (@TypeOf(reader).NoEofError || Al
     self.tags = try TagEntry.readAll(alloc, reader);
     errdefer self.tags.deinit();
 
-    self.tagdata = try std.ArrayList(TagData).initCapacity(alloc, self.tags.items.len);
+    self.tagdata = std.ArrayList(TagData).init(alloc);
     errdefer self.tagdata.deinit();
 
-    for (self.tags.items) |t| {
-        self.tagdata.appendAssumeCapacity(try TagData.read(alloc, t.sig, reader));
+    for (self.tags.items, 0..) |t, i| {
+        if (t.size == 0 or t.off == 0) continue;
+        if (t.size + t.off < @sizeOf(Header)) continue;
+
+        var linked = false;
+        for (self.tags.items, 0..) |t2, x| {
+            if (x == i) continue;
+
+            if (t2.off == t.off and t2.size == t.size) {
+                linked = true;
+                break;
+            }
+        }
+
+        if (linked) continue;
+
+        try self.tagdata.append(try TagData.read(alloc, t, reader));
     }
     return self;
 }
@@ -257,7 +386,7 @@ test "Check size" {
     try std.testing.expectEqual(12, @sizeOf(LocaleUnicodeRecord));
 
     try std.testing.expectEqual(12, @sizeOf(DateTime));
-    try std.testing.expectEqual(12, @sizeOf(Xyz));
+    try std.testing.expectEqual(12, @sizeOf(XyzNumber));
     try std.testing.expectEqual(16, @sizeOf(Profile));
     try std.testing.expectEqual(100, @sizeOf(Header));
 }

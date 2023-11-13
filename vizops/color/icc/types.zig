@@ -200,10 +200,10 @@ pub const LutBToA = extern struct {
 pub const Measurement = extern struct {
     sig: [4]u8 = "meas",
     reserved: u32 = 0,
-    observer: u32,
+    observer: enums.StandardObserver,
     values: numbers.Xyz,
-    geom: u32,
-    flare: u32,
+    geom: enums.MeasurementGeometry,
+    flare: enums.MeasurementFlare,
     illum: enums.Illumant,
 
     pub fn valid(self: Measurement) bool {

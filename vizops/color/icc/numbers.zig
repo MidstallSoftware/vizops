@@ -1,15 +1,15 @@
-pub const PositionNumber = extern struct {
+pub const Position = extern struct {
     off: u32,
     size: u32,
 };
 
-pub const XyzNumber = extern struct {
+pub const Xyz = extern struct {
     x: i32,
     y: i32,
     z: i32,
 };
 
-pub const DateTimeNumber = extern struct {
+pub const DateTime = extern struct {
     year: u16,
     month: u16,
     day: u16,

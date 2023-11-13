@@ -1,7 +1,155 @@
 const std = @import("std");
 const mem = std.mem;
 const enums = @import("enums.zig");
-const basicTypes = @import("basic-types.zig");
+const numbers = @import("numbers.zig");
+
+pub const ChromaticityType = extern struct {
+    sig: [4]u8 = "chrm",
+    reserved: u32 = 0,
+    channels: u16,
+    phosCol: u16,
+
+    pub fn valid(self: ChromaticityType) bool {
+        return mem.eql(u8, self.sig, "chrm");
+    }
+};
+
+pub const Cicp = extern struct {
+    sig: [4]u8 = "cicp",
+    reserved: u32 = 0,
+    colorPrimaries: u8,
+    transferCharacteristics: u8,
+    matrixCoefficients: u8,
+    videoFullRangeFlag: u8,
+
+    pub fn valid(self: Cicp) bool {
+        return mem.eql(u8, self.sig, "cicp");
+    }
+};
+
+pub const ColorantOrder = extern struct {
+    sig: [4]u8 = "clro",
+    reserved: u32 = 0,
+    count: u32,
+    num: u8,
+
+    pub fn valid(self: ColorantOrder) bool {
+        return mem.eql(u8, self.sig, "clro");
+    }
+};
+
+pub const ColorantTable = extern struct {
+    sig: [4]u8 = "clrt",
+    reserved: u32 = 0,
+    count: u32,
+
+    pub fn valid(self: ColorantTable) bool {
+        return mem.eql(u8, self.sig, "clrt");
+    }
+
+    pub const Entry = extern struct {
+        name: [4]u8,
+        value: u16,
+    };
+};
+
+pub const Curve = extern struct {
+    sig: [4]u8 = "curv",
+    reserved: u32 = 0,
+    count: u32,
+
+    pub fn valid(self: Curve) bool {
+        return mem.eql(u8, self.sig, "curv");
+    }
+};
+
+pub const Data = extern struct {
+    sig: [4]u8 = "data",
+    reserved: u32 = 0,
+    flag: enums.DataTypeFlag,
+
+    pub fn valid(self: Data) bool {
+        return mem.eql(u8, self.sig, "data");
+    }
+};
+
+pub const DateTime = extern struct {
+    sig: [4]u8 = "dtim",
+    reserved: u32 = 0,
+    value: numbers.DateTime,
+
+    pub fn valid(self: DateTime) bool {
+        return mem.eql(u8, self.sig, "dtim");
+    }
+};
+
+pub const Dict = extern struct {
+    sig: [4]u8 = "dict",
+    reserved: u32,
+    count: u32,
+    length: u32,
+
+    pub fn valid(self: Dict) bool {
+        return mem.eql(u8, self.sig, "dict");
+    }
+
+    pub const Record16 = extern struct {
+        nameOffset: u32,
+        nameSize: u32,
+        valueOffset: u32,
+        valueSize: u32,
+    };
+
+    pub const Record24 = extern struct {
+        nameOffset: u32,
+        nameSize: u32,
+        valueOffset: u32,
+        valueSize: u32,
+
+        displayNameOffset: u32,
+        displayNameSize: u32,
+    };
+
+    pub const Record32 = extern struct {
+        nameOffset: u32,
+        nameSize: u32,
+        valueOffset: u32,
+        valueSize: u32,
+
+        displayNameOffset: u32,
+        displayNameSize: u32,
+        displayValueOffset: u32,
+        displayValueSize: u32,
+    };
+};
+
+pub const Lut16 = extern struct {
+    sig: [4]u8 = "mft2",
+    reserved: u32 = 0,
+    inputs: u8,
+    outputs: u8,
+    pointCount: u8,
+    padding: u8 = 0,
+    param: [9]i32,
+
+    pub fn valid(self: Lut16) bool {
+        return mem.eql(u8, self.sig, "mft2");
+    }
+};
+
+pub const Lut8 = extern struct {
+    sig: [4]u8 = "mft1",
+    reserved: u32 = 0,
+    inputs: u8,
+    outputs: u8,
+    pointCount: u8,
+    padding: u8 = 0,
+    param: [9]i32,
+
+    pub fn valid(self: Lut8) bool {
+        return mem.eql(u8, self.sig, "mft1");
+    }
+};
 
 pub const LutAToB = extern struct {
     sig: [4]u8 = "mAB ",
@@ -53,10 +201,10 @@ pub const Measurement = extern struct {
     sig: [4]u8 = "meas",
     reserved: u32 = 0,
     observer: u32,
-    values: basicTypes.XyzNumber,
+    values: numbers.Xyz,
     geom: u32,
     flare: u32,
-    illum: basicTypes.Illumant,
+    illum: enums.Illumant,
 
     pub fn valid(self: Measurement) bool {
         return mem.eql(u8, self.sig, "meas");
@@ -255,8 +403,8 @@ pub const Uint8Array = Array(u8, false);
 pub const ViewingConditions = extern struct {
     sig: [4]u8 = "view",
     reserved: u32 = 0,
-    illum: basicTypes.XyzNumber,
-    surr: basicTypes.XyzNumber,
+    illum: numbers.Xyz,
+    surr: numbers.Xyz,
     type: enums.Illumant,
 
     pub fn valid(self: ViewingConditions) bool {
@@ -267,7 +415,7 @@ pub const ViewingConditions = extern struct {
 pub const Xyz = extern struct {
     sig: [4]u8 = "XYZ ",
     reserved: u32 = 0,
-    value: basicTypes.XyzNumber,
+    value: numbers.Xyz,
 
     pub fn valid(self: Xyz) bool {
         return mem.eql(u8, self.sig, "XYZ ");

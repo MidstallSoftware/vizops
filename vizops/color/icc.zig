@@ -8,6 +8,10 @@ const readStructBig = utils.readStructBig;
 const UnicodeHashMap = utils.Unicode16HashMap;
 const Icc = @This();
 
+pub const enums = @import("icc/enums.zig");
+pub const numbers = @import("icc/numbers.zig");
+pub const types = @import("icc/types.zig");
+
 pub const DeviceClasses = struct {
     pub const input = "scnr";
     pub const display = "mntr";

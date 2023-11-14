@@ -17,7 +17,7 @@ pub inline fn read(alloc: Allocator, reader: anytype) !Tags {
 
     var data = std.ArrayList(Tag.Data).init(alloc);
     errdefer {
-        for (data.items) |item| item.deinit();
+        for (data.items) |item| item.deinit(alloc);
         data.deinit();
     }
 
@@ -35,7 +35,7 @@ pub inline fn read(alloc: Allocator, reader: anytype) !Tags {
 
         if (skip) continue;
 
-        try Tag.Data.read(alloc, reader, tag);
+        try data.append(try Tag.Data.read(alloc, reader, tag));
     }
 
     return .{
@@ -47,7 +47,7 @@ pub inline fn read(alloc: Allocator, reader: anytype) !Tags {
 pub inline fn deinit(self: Tags) void {
     self.table.deinit();
 
-    for (self.data.items) |item| item.deinit();
+    for (self.data.items) |item| item.deinit(self.data.allocator);
     self.data.deinit();
 }
 

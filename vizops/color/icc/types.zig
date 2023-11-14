@@ -5,14 +5,44 @@ const Allocator = mem.Allocator;
 const enums = @import("enums.zig");
 const numbers = @import("numbers.zig");
 const utils = @import("../../utils.zig");
+const UnicodeHashMap = utils.Unicode16HashMap;
 
-pub const ChromaticityType = extern struct {
+pub const Chromaticity = extern struct {
     sig: [4]u8 = .{ 'c', 'h', 'r', 'm' },
     reserved: u32 = 0,
     channels: u16,
     phosCol: u16,
 
-    pub inline fn valid(self: ChromaticityType) bool {
+    pub const Value = struct {
+        phosCol: u16,
+        channels: []@Vector(2, u32),
+
+        pub fn deinit(self: Value, alloc: Allocator) void {
+            alloc.free(self.channels);
+        }
+    };
+
+    pub fn read(self: Chromaticity, alloc: Allocator, reader: anytype, rem: usize) !Value {
+        const count = @divExact(rem, @sizeOf([2]u32));
+
+        var list = try alloc.alloc(@Vector(2, u32), count);
+        errdefer alloc.free(list);
+
+        var i: usize = 0;
+        while (i < count) : (i += 1) {
+            const x = try reader.readInt(u32, .big);
+            const y = try reader.readInt(u32, .big);
+
+            list[i] = .{ x, y };
+        }
+
+        return .{
+            .phosCol = self.phosCol,
+            .channels = list,
+        };
+    }
+
+    pub inline fn valid(self: Chromaticity) bool {
         return mem.eql(u8, &self.sig, "chrm");
     }
 };
@@ -91,6 +121,68 @@ pub const Dict = extern struct {
     reserved: u32,
     count: u32,
     length: u32,
+
+    pub const Value = UnicodeHashMap([]const u16);
+
+    pub fn read(self: Dict, alloc: Allocator, reader: anytype, _: usize) !Value {
+        var list = try std.ArrayList(Record32).initCapacity(alloc, self.count);
+        defer list.deinit();
+
+        while (list.items.len < self.count) {
+            list.appendAssumeCapacity(switch (self.length) {
+                16 => blk: {
+                    const record = try utils.readStructBig(reader, Record16);
+                    break :blk .{
+                        .nameOffset = record.nameOffset,
+                        .nameSize = record.nameSize,
+                        .valueOffset = record.valueOffset,
+                        .valueSize = record.valueSize,
+                        .displayNameOffset = 0,
+                        .displayNameSize = 0,
+                        .displayValueOffset = 0,
+                        .displayValueSize = 0,
+                    };
+                },
+                24 => blk: {
+                    const record = try utils.readStructBig(reader, Record24);
+                    break :blk .{
+                        .nameOffset = record.nameOffset,
+                        .nameSize = record.nameSize,
+                        .valueOffset = record.valueOffset,
+                        .valueSize = record.valueSize,
+                        .displayNameOffset = record.displayNameOffset,
+                        .displayNameSize = record.displayNameSize,
+                        .displayValueOffset = 0,
+                        .displayValueSize = 0,
+                    };
+                },
+                32 => try utils.readStructBig(reader, Record32),
+                else => return error.InvalidSize,
+            });
+        }
+
+        var records = Value.init(alloc);
+        errdefer records.deinit();
+        try records.ensureTotalCapacity(self.count);
+
+        for (list.items) |record| {
+            var name = try alloc.alloc(u16, @divExact(record.nameSize, @sizeOf(u16)));
+            errdefer alloc.free(name);
+            for (name) |*c| c.* = try reader.readInt(u16, .big);
+            assert(try std.unicode.utf16CountCodepoints(name) == @divExact(record.nameSize, @sizeOf(u16)));
+
+            var value = try alloc.alloc(u16, @divExact(record.valueSize, @sizeOf(u16)));
+            errdefer alloc.free(value);
+            for (value) |*c| c.* = try reader.readInt(u16, .big);
+            assert(try std.unicode.utf16CountCodepoints(value) == @divExact(record.valueSize, @sizeOf(u16)));
+
+            try reader.skipBytes(record.displayNameSize + record.displayValueSize, .{});
+            records.putAssumeCapacity(name, value);
+        }
+
+        try reader.skipBytes(2, .{});
+        return records;
+    }
 
     pub inline fn valid(self: Dict) bool {
         return mem.eql(u8, &self.sig, "dict");
@@ -220,7 +312,7 @@ pub const MultiLocalizedUnicode = extern struct {
     count: u32,
     size: u32,
 
-    pub const HashMap = std.HashMap([4]u8, []const u16, struct {
+    pub const Value = std.HashMap([4]u8, []const u16, struct {
         pub fn hash(_: @This(), s: [4]u8) u64 {
             return std.hash.Wyhash.hash(0, &s);
         }
@@ -230,13 +322,13 @@ pub const MultiLocalizedUnicode = extern struct {
         }
     }, std.hash_map.default_max_load_percentage);
 
-    pub fn read(self: MultiLocalizedUnicode, alloc: Allocator, reader: anytype, _: usize) !HashMap {
+    pub fn read(self: MultiLocalizedUnicode, alloc: Allocator, reader: anytype, _: usize) !Value {
         var records = try std.ArrayList(Record).initCapacity(alloc, self.count);
         defer records.deinit();
 
         while (records.items.len < self.count) records.appendAssumeCapacity(try utils.readStructBig(reader, Record));
 
-        var hmap = HashMap.init(alloc);
+        var hmap = Value.init(alloc);
         try hmap.ensureTotalCapacity(self.count);
         errdefer hmap.deinit();
 

@@ -56,7 +56,7 @@ pub fn format(self: Tags, comptime _: []const u8, options: std.fmt.FormatOptions
     try writer.writeAll("{ .table = ");
     try std.fmt.formatType(self.table.items, "any", options, writer, 2);
     try writer.writeAll(", .data = ");
-    try std.fmt.formatType(self.data.items, "any", options, writer, 2);
+    try std.fmt.formatType(self.data.items, "any", options, writer, 3);
     try writer.writeAll(" }");
 }
 
@@ -75,7 +75,7 @@ pub const Entry = extern struct {
         try writer.writeAll("{ .sig = \"");
         try std.fmt.formatType(self.sig, "s", options, writer, 1);
 
-        try writer.writeAll("\", .off = ");
+        try writer.writeAll("\", .off = 0x");
         try std.fmt.formatInt(self.off, 16, .lower, options, writer);
 
         try writer.writeAll(", .size = ");

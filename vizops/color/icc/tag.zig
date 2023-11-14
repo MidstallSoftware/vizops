@@ -3,6 +3,7 @@ const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const mem = std.mem;
+const numbers = @import("numbers.zig");
 const types = @import("types.zig");
 const Tags = @import("tags.zig");
 const utils = @import("../../utils.zig");
@@ -24,7 +25,7 @@ pub const BToA = union(enum) {
 pub const Data = union(enum) {
     A2B0: AToB,
     A2B1: AToB,
-    bXYZ: types.Xyz,
+    bXYZ: numbers.Xyz,
     bTRC: Trc,
     rTRC: Trc,
     B2A0: BToA,
@@ -36,10 +37,10 @@ pub const Data = union(enum) {
     dmnd: types.MultiLocalizedUnicode.Value,
     dmdd: types.MultiLocalizedUnicode.Value,
     desc: types.MultiLocalizedUnicode.Value,
-    rXYZ: types.Xyz,
-    gXYZ: types.Xyz,
+    rXYZ: numbers.Xyz,
+    gXYZ: numbers.Xyz,
     meta: types.Dict.Value,
-    wtpt: types.Xyz,
+    wtpt: numbers.Xyz,
     chad: std.ArrayList(i32),
 
     pub const Error = error{
@@ -117,10 +118,61 @@ pub const Data = union(enum) {
         return error.InvalidSignature;
     }
 
+    pub inline fn format(self: Data, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        inline for (@typeInfo(Data).Union.fields) |f| {
+            if (mem.eql(u8, f.name, std.enums.tagName(std.meta.Tag(Data), std.meta.activeTag(self)).?)) {
+                const field = @field(self, f.name);
+                switch (f.type) {
+                    types.Dict.Value => {
+                        try writer.writeAll(@typeName(types.Dict));
+                        try writer.writeByte('{');
+
+                        var iter = field.iterator();
+                        var i: usize = 0;
+                        while (iter.next()) |entry| : (i += 1) {
+                            if (i == 1) try writer.writeByte(',');
+                            try writer.print(" .{} = \"{}\"", .{
+                                std.unicode.fmtUtf16le(entry.key_ptr.*),
+                                std.unicode.fmtUtf16le(entry.value_ptr.*),
+                            });
+                        }
+
+                        try writer.writeAll(" }");
+                    },
+                    types.MultiLocalizedUnicode.Value => {
+                        try writer.writeAll(@typeName(types.MultiLocalizedUnicode));
+                        try writer.writeByte('{');
+
+                        var iter = field.iterator();
+                        var i: usize = 0;
+                        while (iter.next()) |entry| : (i += 1) {
+                            if (i == 1) try writer.writeByte(',');
+                            try writer.print(" .{s} = \"{}\"", .{
+                                entry.key_ptr.*,
+                                std.unicode.fmtUtf16le(entry.value_ptr.*),
+                            });
+                        }
+
+                        try writer.writeAll(" }");
+                    },
+                    else => return std.fmt.formatType(field, fmt, options, writer, 3),
+                }
+            }
+        }
+    }
+
     pub inline fn deinit(self: Data, alloc: Allocator) void {
-        switch (self) {
-            .chrm => |chrm| chrm.deinit(alloc),
-            else => {},
+        inline for (@typeInfo(Data).Union.fields) |f| {
+            if (mem.eql(u8, f.name, std.enums.tagName(std.meta.Tag(Data), std.meta.activeTag(self)).?)) {
+                const field = @constCast(&@field(self, f.name));
+                switch (f.type) {
+                    types.Chromaticity.Value => field.deinit(alloc),
+                    types.Dict.Value => field.deinit(),
+                    types.MultiLocalizedUnicode.Value => field.deinit(),
+                    std.ArrayList(i32) => field.deinit(),
+                    else => {},
+                }
+            }
         }
     }
 };

@@ -562,6 +562,13 @@ pub const Xyz = extern struct {
     reserved: u32 = 0,
     value: numbers.Xyz,
 
+    pub fn read(self: Xyz, alloc: Allocator, reader: anytype, rem: usize) !numbers.Xyz {
+        _ = alloc;
+        _ = reader;
+        _ = rem;
+        return self.value;
+    }
+
     pub inline fn valid(self: Xyz) bool {
         return mem.eql(u8, &self.sig, "XYZ ");
     }

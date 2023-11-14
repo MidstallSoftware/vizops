@@ -13,6 +13,9 @@ pub fn byteSwapAllFields(comptime S: type, ptr: *S) void {
                     @field(ptr, f.name)[i] = @byteSwap(@field(ptr, f.name)[i]);
                 }
             },
+            .Enum => {
+                @field(ptr, f.name) = @enumFromInt(@byteSwap(@intFromEnum(@field(ptr, f.name))));
+            },
             else => {
                 @field(ptr, f.name) = @byteSwap(@field(ptr, f.name));
             },
@@ -20,7 +23,7 @@ pub fn byteSwapAllFields(comptime S: type, ptr: *S) void {
     }
 }
 
-pub fn readStructBig(reader: anytype, comptime T: type) !T {
+pub fn readStructBig(reader: anytype, comptime T: type) @TypeOf(reader).NoEofError!T {
     var res = try reader.readStruct(T);
     if (builtin.cpu.arch.endian() != std.builtin.Endian.big) {
         byteSwapAllFields(T, &res);

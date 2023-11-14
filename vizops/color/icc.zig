@@ -8,9 +8,22 @@ const readStructBig = utils.readStructBig;
 const UnicodeHashMap = utils.Unicode16HashMap;
 const Icc = @This();
 
+/// Enum types
 pub const enums = @import("icc/enums.zig");
+
+/// Numbered types
 pub const numbers = @import("icc/numbers.zig");
+
+/// ICC Profile Header
 pub const Header = @import("icc/header.zig").Header;
+
+/// ICC tag data
+pub const tag = @import("icc/tag.zig");
+
+/// ICC tag reader
+pub const Tags = @import("icc/tags.zig");
+
+/// Structured data types
 pub const types = @import("icc/types.zig");
 
 test "Check size" {

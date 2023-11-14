@@ -9,7 +9,20 @@ pub fn main() !void {
 
     std.debug.print("{any}\n", .{v});
 
-    //var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
+    var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
+    const header = vizops.color.icc.Header.read(buf.reader()) catch |err| {
+        std.debug.print("Buffer was at {}\n", .{buf.pos});
+        return err;
+    };
+    std.debug.print("{}\n", .{header});
+
+    const tags = vizops.color.icc.Tags.read(std.heap.page_allocator, buf.reader()) catch |err| {
+        std.debug.print("Buffer was at {}\n", .{buf.pos});
+        return err;
+    };
+    defer tags.deinit();
+    std.debug.print("{}\n", .{tags});
+
     //const icc = vizops.color.icc.read(std.heap.page_allocator, buf.reader()) catch |err| {
     //    std.debug.print("Buffer was at {}\n", .{buf.pos});
     //    return err;

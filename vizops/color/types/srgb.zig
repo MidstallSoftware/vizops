@@ -56,19 +56,17 @@ pub fn sRGB(comptime T: type) type {
                     const cmin = @min(value[0], value[1], value[2]);
                     const delta: V = cmax - cmin;
 
-                    const h = blk2: {
+                    const h = @mod(((blk2: {
                         if (cmax == value[0]) break :blk2 (value[1] - value[2]) / delta;
-                        if (cmax == value[1]) break :blk2 2.0 + (value[2] - value[0]) / delta;
-                        break :blk2 4.0 + (value[0] - value[1]) / delta;
-                    };
-                    const hu = h * 60;
-                    const hue = if (hu > 0) hu else hu + 360;
+                        if (cmax == value[1]) break :blk2 2.0 + ((value[2] - value[0]) / delta);
+                        break :blk2 4.0 + ((value[0] - value[1]) / delta);
+                    }) * 60), 360) / 365;
 
                     const s = if (cmax == 0) 0 else delta / cmax;
                     const v = cmax;
                     const a = value[3];
 
-                    break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ hue / 365.0, s, v, a }).cast(T) };
+                    break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ h, s, v, a }).cast(T) };
                 },
                 .hsl => blk: {
                     const V = if (@typeInfo(T) == .Int) f32 else T;
@@ -85,17 +83,15 @@ pub fn sRGB(comptime T: type) type {
 
                     const delta: V = cmax - cmin;
 
-                    const h = blk2: {
+                    const h = @mod(((blk2: {
                         if (cmax == value[0]) break :blk2 (value[1] - value[2]) / delta;
-                        if (cmax == value[1]) break :blk2 2.0 + (value[2] - value[0]) / delta;
-                        break :blk2 4.0 + (value[0] - value[1]) / delta;
-                    };
-                    const hu = h * 60;
-                    const hue = if (hu > 0) hu else hu + 360;
+                        if (cmax == value[1]) break :blk2 2.0 + ((value[2] - value[0]) / delta);
+                        break :blk2 4.0 + ((value[0] - value[1]) / delta);
+                    }) * 60), 360) / 365;
 
                     const s = if (delta == 0) 0 else delta / (1 - @abs(2 * l - 1));
 
-                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ hue / 365.0, s, l, a }).cast(T) };
+                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ h, s, l, a }).cast(T) };
                 },
             };
         }
@@ -113,6 +109,10 @@ pub fn sRGB(comptime T: type) type {
 pub const sRGBu8 = sRGB(u8);
 pub const sRGBf32 = sRGB(f32);
 
+inline fn rad(v: u16) u8 {
+    return @intFromFloat((@as(f32, @floatFromInt(v)) / 365.0) * 255.0);
+}
+
 test "Common colors from sRGB to HSL" {
     const table: []const struct { @Vector(4, u8), @Vector(4, u8) } = &.{
         // #000
@@ -127,73 +127,76 @@ test "Common colors from sRGB to HSL" {
         // #0f0
         .{
             .{ 0, 255, 0, 255 },
-            .{ @as(u8, (120 / 365) * 255), 255, @as(u8, 255 / 2), 255 },
+            .{ rad(120), 255, @as(u8, 255 / 2), 255 },
         },
         // #00f
         .{
             .{ 0, 0, 255, 255 },
-            .{ @as(u8, (240 / 365) * 255), 255, @as(u8, 255 / 2), 255 },
+            .{ rad(240), 255, @as(u8, 255 / 2), 255 },
         },
         // #ff0
         .{
             .{ 255, 255, 0, 255 },
-            .{ @as(u8, (60 / 365) * 255), 255, @as(u8, 255 / 2), 255 },
+            .{ rad(60), 255, @as(u8, 255 / 2), 255 },
         },
         // #0ff
         .{
             .{ 0, 255, 255, 255 },
-            .{ @as(u8, (180 / 365) * 255), 255, @as(u8, 255 / 2), 255 },
+            .{ rad(180), 255, @as(u8, 255 / 2), 255 },
         },
         // #f0f
         .{
             .{ 255, 0, 255, 255 },
-            .{ @as(u8, (300 / 365) * 255), 255, @as(u8, 255 / 2), 255 },
+            .{ rad(300), 255, @as(u8, 255 / 2), 255 },
         },
         // #bfbfbf
         .{
             .{ 191, 191, 191, 255 },
-            .{ 0, 0, @as(u8, (255 / 4) * 3), 255 },
+            .{ 0, 0, 191, 255 },
         },
         // #808080
         .{
             .{ 128, 128, 128, 255 },
-            .{ 0, 0, @as(u8, 255 / 2), 255 },
+            .{ 0, 0, 128, 255 },
         },
         // #800
         .{
             .{ 128, 0, 0, 255 },
-            .{ 0, 255, @as(u8, 255 / 4), 255 },
+            .{ 0, 255, 64, 255 },
         },
         // #808000
         .{
             .{ 128, 128, 0, 255 },
-            .{ @as(u8, (60 / 365) * 255), 255, @as(u8, 255 / 4), 255 },
+            .{ rad(60), 255, 64, 255 },
         },
         // #080
         .{
             .{ 0, 128, 0, 255 },
-            .{ @as(u8, (120 / 365) * 255), 255, @as(u8, 255 / 4), 255 },
+            .{ rad(120), 255, 64, 255 },
         },
         // #800080
         .{
             .{ 128, 0, 128, 255 },
-            .{ @as(u8, (300 / 365) * 255), 255, @as(u8, 255 / 4), 255 },
+            .{ rad(300), 255, 64, 255 },
         },
         // #008080
         .{
             .{ 0, 128, 128, 255 },
-            .{ @as(u8, (180 / 365) * 255), 255, @as(u8, 255 / 4), 255 },
+            .{ rad(180), 255, 64, 255 },
         },
         // #008
         .{
             .{ 0, 0, 128, 255 },
-            .{ @as(u8, (240 / 365) * 255), 255, @as(u8, 255 / 4), 255 },
+            .{ rad(240), 255, 64, 255 },
         },
     };
 
-    for (table) |entry| {
+    for (table, 0..) |entry, i| {
         const value = sRGBu8.init(entry[0]).convert(.hsl).hsl.value;
         const expected = @import("hsl.zig").Hsl(u8).init(entry[1]).value;
-        try std.testing.expectEqual(expected, value);
+        std.testing.expectEqual(expected, value) catch |err| {
+            std.debug.print("(#{}) value: {}, expected: {}\n", .{ i, value, expected });
+            return err;
+        };
     }
 }

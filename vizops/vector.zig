@@ -60,11 +60,8 @@ pub fn Vector(comptime VectorLength: usize, comptime _ElementType: type) type {
                 .Array, .Vector => .{ .value = value },
                 .Struct => |s| if (s.is_tuple) blk: {
                     var val = @Vector(s.fields.len, ElementType);
-                    var i: usize = 0;
-                    inline while (i < s.fields.len) : (i += 1) {
-                        val[i] = @field(value, s.fields[i].name);
-                    }
-                    break :blk val;
+                    inline for (s.fields, 0..) |f, i| val[i] = @field(value, f.name);
+                    break :blk .{ .value = val };
                 } else value,
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(value))),
             };

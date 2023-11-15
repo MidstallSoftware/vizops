@@ -9,7 +9,7 @@ pub fn main() !void {
 
     std.debug.print("{any}\n", .{v});
 
-    const c = vizops.color.types.sRGB(u8).init([_]u8{ @as(u8, 0), @as(u8, 255), @as(u8, 0), @as(u8, 255) })
+    const c = vizops.color.types.sRGB(u8).init(.{ @as(u8, 0), @as(u8, 255), @as(u8, 0), @as(u8, 255) })
         .channel(.red)
         .set(25)
         .done()

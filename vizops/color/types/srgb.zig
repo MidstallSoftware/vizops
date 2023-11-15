@@ -62,11 +62,10 @@ pub fn sRGB(comptime T: type) type {
                 .Array, .Vector => .{ .value = value },
                 .Struct => |s| if (s.is_tuple) blk: {
                     var val: @Vector(s.fields.len, T) = @splat(0);
-                    var i: usize = 0;
-                    inline while (i < s.fields.len) : (i += 1) {
-                        val[i] = @field(value, s.fields[i].name);
+                    inline for (s.fields, 0..) |f, i| {
+                        val[i] = @field(value, f.name);
                     }
-                    break :blk val;
+                    break :blk .{ .value = val };
                 } else value,
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(value))),
             };

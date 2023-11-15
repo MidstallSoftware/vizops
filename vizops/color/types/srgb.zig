@@ -70,6 +70,28 @@ pub fn sRGB(comptime T: type) type {
 
                     break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ h, s, v, a }).cast(T) };
                 },
+                .hsl => blk: {
+                    const V = if (@typeInfo(T) == .Int) f32 else T;
+                    const value = self.cast(V).value;
+
+                    const cmax = @max(value[0], value[1], value[2]);
+                    const cmin = @min(value[0], value[1], value[2]);
+                    const delta: V = cmax - cmin;
+
+                    const h = blk2: {
+                        if (delta == 0) break :blk2 0;
+                        if (cmax == value[0]) break :blk2 @mod((@mod(((value[1] - value[2]) / delta), @as(V, 6.0)) * 60.0), 360.0);
+                        if (cmax == value[1]) break :blk2 @mod(((((value[2] - value[0]) / delta) + 2.0) * 60.0), 360.0);
+                        if (cmax == value[2]) break :blk2 @mod(((((value[0] - value[1]) / delta) + 4.0) * 60.0), 360.0);
+                        unreachable;
+                    };
+
+                    const l = (cmax + cmin) / 2;
+                    const s = if (delta == 0) 0 else delta / (1 - @abs(2 * l - 1));
+                    const a = value[3];
+
+                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ h, s, l, a }).cast(T) };
+                },
             };
         }
 

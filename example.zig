@@ -16,7 +16,7 @@ pub fn main() !void {
         .channel(.alpha)
         .div(10)
         .done();
-    std.debug.print("{any} {any} {any}\n", .{ c, c.convert(.linearRGB).linearRGB, c.convert(.hsv).hsv });
+    std.debug.print("{any} {any} {any} {any}\n", .{ c, c.convert(.linearRGB).linearRGB, c.convert(.hsv).hsv, c.convert(.hsl).hsl });
 
     var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
     const header = vizops.color.icc.Header.read(buf.reader()) catch |err| {

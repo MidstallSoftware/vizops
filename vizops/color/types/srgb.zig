@@ -5,6 +5,7 @@ pub fn sRGB(comptime T: type) type {
     return struct {
         const ColorFormats = @import("../typed.zig").Typed(T);
         const ColorFormatType = std.meta.DeclEnum(ColorFormats);
+        const ColorFormatUnion = metaplus.unions.useTag(metaplus.unions.fromDecls(ColorFormats), ColorFormatType);
         const Self = @This();
 
         pub const Type = @Vector(4, T);
@@ -71,9 +72,32 @@ pub fn sRGB(comptime T: type) type {
             };
         }
 
-        pub inline fn convert(self: Self, t: ColorFormatType) metaplus.unions.fromDecls(ColorFormats) {
+        pub inline fn convert(self: Self, t: ColorFormatType) ColorFormatUnion {
             return switch (t) {
-                .sRGB => self,
+                .sRGB => .{ .sRGB = self },
+                .linearRGB => blk: {
+                    const V = if (@typeInfo(T) == .Float) u16 else T;
+
+                    const lut = comptime blk2: {
+                        @setEvalBranchQuota(1_000 * std.math.maxInt(V));
+                        const max = std.math.maxInt(V);
+                        var res: [max + 1]f32 = undefined;
+                        for (0..(max + 1)) |i| {
+                            const c = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(max));
+                            res[i] = if (c <= 0.04045) c / 12.92 else std.math.pow(f32, (c + 0.055) / 1.055, 2.4);
+                        }
+                        break :blk2 res;
+                    };
+
+                    const value = self.cast(V).value;
+
+                    break :blk .{ .linearRGB = @import("linear-rgb.zig").linearRGB(f32).init(.{
+                        lut[value[0]],
+                        lut[value[1]],
+                        lut[value[2]],
+                        lut[value[3]],
+                    }).cast(T) };
+                },
             };
         }
 
@@ -83,6 +107,43 @@ pub fn sRGB(comptime T: type) type {
                 .index = i,
             };
             return &r;
+        }
+
+        pub inline fn cast(self: Self, comptime V: type) sRGB(V) {
+            if (V == T) return self;
+            if (@typeInfo(V) == .Float and @typeInfo(T) == .Float) {
+                return .{
+                    .value = [_]V{
+                        @floatCast(self.value[0]),
+                        @floatCast(self.value[1]),
+                        @floatCast(self.value[2]),
+                        @floatCast(self.value[3]),
+                    },
+                };
+            }
+
+            if (@typeInfo(V) == .Int and @typeInfo(T) == .Int) {
+                return self.cast(std.meta.Float(@typeInfo(V).Int.bits)).cast(V);
+            }
+
+            const IntType = if (@typeInfo(V) == .Int) V else T;
+            const FloatType = if (@typeInfo(V) == .Float) V else T;
+            const max: FloatType = @floatFromInt(std.math.maxInt(IntType));
+            return if (IntType == V) .{
+                .value = .{
+                    @as(V, @intFromFloat(self.value[0] * max)),
+                    @as(V, @intFromFloat(self.value[1] * max)),
+                    @as(V, @intFromFloat(self.value[2] * max)),
+                    @as(V, @intFromFloat(self.value[3] * max)),
+                },
+            } else .{
+                .value = (@Vector(4, V){
+                    @as(V, @floatFromInt(self.value[0])),
+                    @as(V, @floatFromInt(self.value[1])),
+                    @as(V, @floatFromInt(self.value[2])),
+                    @as(V, @floatFromInt(self.value[3])),
+                }) / @as(@Vector(4, V), @splat(max)),
+            };
         }
     };
 }

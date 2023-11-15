@@ -57,18 +57,18 @@ pub fn sRGB(comptime T: type) type {
                     const delta: V = cmax - cmin;
 
                     const h = blk2: {
-                        if (delta == 0) break :blk2 0;
-                        if (cmax == value[0]) break :blk2 @mod((@mod(((value[1] - value[2]) / delta), @as(V, 6.0)) * 60.0), 360.0);
-                        if (cmax == value[1]) break :blk2 @mod(((((value[2] - value[0]) / delta) + 2.0) * 60.0), 360.0);
-                        if (cmax == value[2]) break :blk2 @mod(((((value[0] - value[1]) / delta) + 4.0) * 60.0), 360.0);
-                        unreachable;
+                        if (cmax == value[0]) break :blk2 (value[1] - value[2]) / delta;
+                        if (cmax == value[1]) break :blk2 2.0 + (value[2] - value[0]) / delta;
+                        break :blk2 4.0 + (value[0] - value[1]) / delta;
                     };
+                    const hu = h * 60;
+                    const hue = if (hu > 0) hu else hu + 360;
 
                     const s = if (cmax == 0) 0 else delta / cmax;
                     const v = cmax;
                     const a = value[3];
 
-                    break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ h, s, v, a }).cast(T) };
+                    break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ hue / 365.0, s, v, a }).cast(T) };
                 },
                 .hsl => blk: {
                     const V = if (@typeInfo(T) == .Int) f32 else T;
@@ -79,18 +79,18 @@ pub fn sRGB(comptime T: type) type {
                     const delta: V = cmax - cmin;
 
                     const h = blk2: {
-                        if (delta == 0) break :blk2 0;
-                        if (cmax == value[0]) break :blk2 @mod((@mod(((value[1] - value[2]) / delta), @as(V, 6.0)) * 60.0), 360.0);
-                        if (cmax == value[1]) break :blk2 @mod(((((value[2] - value[0]) / delta) + 2.0) * 60.0), 360.0);
-                        if (cmax == value[2]) break :blk2 @mod(((((value[0] - value[1]) / delta) + 4.0) * 60.0), 360.0);
-                        unreachable;
+                        if (cmax == value[0]) break :blk2 (value[1] - value[2]) / delta;
+                        if (cmax == value[1]) break :blk2 2.0 + (value[2] - value[0]) / delta;
+                        break :blk2 4.0 + (value[0] - value[1]) / delta;
                     };
+                    const hu = h * 60;
+                    const hue = if (hu > 0) hu else hu + 360;
 
-                    const l = (cmax + cmin) / 2;
+                    const l = (cmax + cmin) / 2.0;
                     const s = if (delta == 0) 0 else delta / (1 - @abs(2 * l - 1));
                     const a = value[3];
 
-                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ h, s, l, a }).cast(T) };
+                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ hue / 365.0, s, l, a }).cast(T) };
                 },
             };
         }

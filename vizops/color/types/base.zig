@@ -38,12 +38,12 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
             const FloatType = if (@typeInfo(V) == .Float) V else T;
             const max: FloatType = @floatFromInt(std.math.maxInt(IntType));
             return if (IntType == V) .{
-                .value = .{
+                .value = (@Vector(4, V){
                     @as(V, @intFromFloat(self.value[0] * max)),
                     @as(V, @intFromFloat(self.value[1] * max)),
                     @as(V, @intFromFloat(self.value[2] * max)),
                     @as(V, @intFromFloat(self.value[3] * max)),
-                },
+                }),
             } else .{
                 .value = (@Vector(4, V){
                     @as(V, @floatFromInt(self.value[0])),
@@ -51,6 +51,15 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
                     @as(V, @floatFromInt(self.value[2])),
                     @as(V, @floatFromInt(self.value[3])),
                 }) / @as(@Vector(4, V), @splat(max)),
+            };
+        }
+
+        pub inline fn eq(self: Self, b: anytype) bool {
+            return switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => self.eq(b.*),
+                .Int, .Float, .Vector, .Array => self.eq(init(b)),
+                .Struct => |s| if (s.is_tuple) self.eq(init(b)) else std.simd.countTrues(self.value == b.value) == @typeInfo(Self.Type).Vector.len,
+                else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
             };
         }
     };

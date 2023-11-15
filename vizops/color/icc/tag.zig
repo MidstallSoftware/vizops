@@ -130,7 +130,7 @@ pub const Data = union(enum) {
                         var iter = field.iterator();
                         var i: usize = 0;
                         while (iter.next()) |entry| : (i += 1) {
-                            if (i == 1) try writer.writeByte(',');
+                            if (i + 1 < field.count()) try writer.writeByte(',');
                             try writer.print(" .{} = \"{}\"", .{
                                 std.unicode.fmtUtf16le(entry.key_ptr.*),
                                 std.unicode.fmtUtf16le(entry.value_ptr.*),
@@ -146,7 +146,7 @@ pub const Data = union(enum) {
                         var iter = field.iterator();
                         var i: usize = 0;
                         while (iter.next()) |entry| : (i += 1) {
-                            if (i == 1) try writer.writeByte(',');
+                            if (i + 1 < field.count()) try writer.writeByte(',');
                             try writer.print(" .{s} = \"{}\"", .{
                                 entry.key_ptr.*,
                                 std.unicode.fmtUtf16le(entry.value_ptr.*),

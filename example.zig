@@ -9,6 +9,15 @@ pub fn main() !void {
 
     std.debug.print("{any}\n", .{v});
 
+    const c = vizops.color.types.sRGB(u8).init([_]u8{ @as(u8, 0), @as(u8, 255), @as(u8, 0), @as(u8, 255) })
+        .channel(.red)
+        .set(25)
+        .done()
+        .channel(.alpha)
+        .div(10)
+        .done();
+    std.debug.print("{any}\n", .{c});
+
     var buf = std.io.fixedBufferStream(@embedFile("srgb.icc"));
     const header = vizops.color.icc.Header.read(buf.reader()) catch |err| {
         std.debug.print("Buffer was at {}\n", .{buf.pos});

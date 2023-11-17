@@ -1,6 +1,7 @@
 const std = @import("std");
 
 pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, comptime T: type) type {
+    const VectorLength = @typeInfo(Self.Type).Vector.len;
     return struct {
         pub inline fn init(value: anytype) Self {
             return switch (@typeInfo(@TypeOf(value))) {
@@ -20,13 +21,10 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
         pub inline fn cast(self: Self, comptime V: type) Factory(V) {
             if (V == T) return self;
             if (@typeInfo(V) == .Float and @typeInfo(T) == .Float) {
+                var vector: @Vector(VectorLength, V) = undefined;
+                inline for (0..VectorLength) |i| vector[i] = @floatCast(self.value[i]);
                 return .{
-                    .value = [_]V{
-                        @floatCast(self.value[0]),
-                        @floatCast(self.value[1]),
-                        @floatCast(self.value[2]),
-                        @floatCast(self.value[3]),
-                    },
+                    .value = vector,
                 };
             }
 
@@ -37,20 +35,14 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
             const IntType = if (@typeInfo(V) == .Int) V else T;
             const FloatType = if (@typeInfo(V) == .Float) V else T;
             const max: FloatType = @floatFromInt(std.math.maxInt(IntType));
-            return if (IntType == V) .{
-                .value = (@Vector(4, V){
-                    @as(V, @intFromFloat(self.value[0] * max)),
-                    @as(V, @intFromFloat(self.value[1] * max)),
-                    @as(V, @intFromFloat(self.value[2] * max)),
-                    @as(V, @intFromFloat(self.value[3] * max)),
-                }),
-            } else .{
-                .value = (@Vector(4, V){
-                    @as(V, @floatFromInt(self.value[0])),
-                    @as(V, @floatFromInt(self.value[1])),
-                    @as(V, @floatFromInt(self.value[2])),
-                    @as(V, @floatFromInt(self.value[3])),
-                }) / @as(@Vector(4, V), @splat(max)),
+
+            var vector: @Vector(VectorLength, V) = undefined;
+            inline for (0..VectorLength) |i| {
+                vector[i] = if (IntType == V) @intFromFloat(self.value[i] * max) else @floatFromInt(self.value[i]);
+            }
+
+            return .{
+                .value = if (FloatType == V) vector / @as(@Vector(VectorLength, V), @splat(max)) else vector,
             };
         }
 

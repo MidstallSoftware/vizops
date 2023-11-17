@@ -93,6 +93,17 @@ pub fn sRGB(comptime T: type) type {
 
                     break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ h, s, l, a }).cast(T) };
                 },
+                .cmyk => blk: {
+                    const V = if (@typeInfo(T) == .Int) f32 else T;
+                    const value = self.cast(V).value;
+                    const arrval: [4]V = value;
+                    const rgb: @Vector(3, V) = arrval[0..3].*;
+
+                    const k = 1 - @max(value[0], value[1], value[2]);
+                    const cmy = (@as(@Vector(3, V), @splat(1)) - rgb - @as(@Vector(3, V), @splat(k))) / @as(@Vector(3, V), @splat(1 - k));
+
+                    break :blk .{ .cmyk = @import("cmyk.zig").Cmyk(V).init(std.simd.join(cmy, @Vector(2, V){ k, value[3] })).cast(T) };
+                },
             };
         }
 

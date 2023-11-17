@@ -32,6 +32,17 @@ pub fn main() !void {
     defer tags.deinit();
     std.debug.print("{}\n", .{tags});
 
+    inline for (@typeInfo(vizops.color.fourcc.formats).Struct.decls) |d| {
+        const f = @field(vizops.color.fourcc.formats, d.name);
+        std.debug.print("\t{s} - {!any} - 0x{x}", .{ d.name, vizops.color.fourcc.Value.decode(f), f });
+
+        if (vizops.color.fourcc.Value.decode(f) catch null) |a| {
+            std.debug.print(" - {}\n", .{a.width()});
+        } else {
+            std.debug.print("\n", .{});
+        }
+    }
+
     //const icc = vizops.color.icc.read(std.heap.page_allocator, buf.reader()) catch |err| {
     //    std.debug.print("Buffer was at {}\n", .{buf.pos});
     //    return err;

@@ -9,5 +9,6 @@ pub usingnamespace @import("color/types/srgb.zig");
 
 test {
     _ = icc;
+    _ = fourcc;
     _ = types;
 }

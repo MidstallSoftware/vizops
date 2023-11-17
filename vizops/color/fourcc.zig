@@ -45,6 +45,15 @@ pub const Value = union(enum) {
         return false;
     }
 
+    inline fn decodePaddedRgbTuple(i: u8) @Vector(4, u8) {
+        const x: u8 = i / 3;
+        if ((i % 2) == 0) {
+            return @splat(x);
+        }
+
+        return .{ (i + 1) - (x * 3), x, x, x };
+    }
+
     pub fn decode(ivalue: u32) (std.fmt.ParseIntError || error{InvalidFormat})!Value {
         var value: [4]u8 = undefined;
         std.mem.writeInt(u32, &value, ivalue, builtin.cpu.arch.endian());
@@ -111,14 +120,7 @@ pub const Value = union(enum) {
                     'X' => blk: {
                         if (std.ascii.isDigit(value[2])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
-
-                            break :blk switch (i) {
-                                12 => .{ .rgbx = @splat(4) },
-                                15 => .{ .rgbx = .{ 5, 5, 5, 1 } },
-                                24 => .{ .rgbx = @splat(8) },
-                                30 => .{ .rgbx = .{ 10, 10, 10, 2 } },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .rgbx = std.simd.reverseOrder(decodePaddedRgbTuple(i)) };
                         }
 
                         if (value[2] == 'A' and std.ascii.isDigit(value[3])) {
@@ -132,13 +134,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[2])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .rgba = @splat(4) },
-                                15 => .{ .rgba = .{ 5, 5, 5, 1 } },
-                                24 => .{ .rgba = @splat(8) },
-                                30 => .{ .rgba = .{ 10, 10, 10, 2 } },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .rgba = std.simd.reverseOrder(decodePaddedRgbTuple(i)) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -150,13 +146,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[2])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .bgra = @splat(4) },
-                                15 => .{ .bgra = .{ 5, 5, 5, 1 } },
-                                24 => .{ .bgra = @splat(8) },
-                                30 => .{ .bgra = .{ 10, 10, 10, 2 } },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .bgra = std.simd.reverseOrder(decodePaddedRgbTuple(i)) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -186,13 +176,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[2])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .bgrx = @splat(4) },
-                                15 => .{ .bgrx = .{ 5, 5, 5, 1 } },
-                                24 => .{ .bgrx = @splat(8) },
-                                30 => .{ .bgrx = .{ 10, 10, 10, 2 } },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .bgrx = std.simd.reverseOrder(decodePaddedRgbTuple(i)) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -222,14 +206,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[3])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .argb = @splat(4) },
-                                15 => .{ .argb = .{ 1, 5, 5, 5 } },
-                                24 => .{ .argb = @splat(8) },
-                                30 => .{ .argb = .{ 2, 10, 10, 10 } },
-                                48 => .{ .argb = @splat(16) },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .argb = decodePaddedRgbTuple(i) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -238,14 +215,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[3])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .abgr = @splat(4) },
-                                15 => .{ .abgr = .{ 1, 5, 5, 5 } },
-                                24 => .{ .abgr = @splat(8) },
-                                30 => .{ .abgr = .{ 2, 10, 10, 10 } },
-                                48 => .{ .abgr = @splat(16) },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .abgr = decodePaddedRgbTuple(i) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -257,14 +227,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[3])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .xrgb = @splat(4) },
-                                15 => .{ .xrgb = .{ 1, 5, 5, 5 } },
-                                24 => .{ .xrgb = @splat(8) },
-                                30 => .{ .xrgb = .{ 2, 10, 10, 10 } },
-                                48 => .{ .xrgb = @splat(16) },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .xrgb = decodePaddedRgbTuple(i) };
                         }
 
                         break :blk error.InvalidFormat;
@@ -273,14 +236,7 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[3])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
-                            break :blk switch (i) {
-                                12 => .{ .xbgr = @splat(4) },
-                                15 => .{ .xbgr = .{ 1, 5, 5, 5 } },
-                                24 => .{ .xbgr = @splat(8) },
-                                30 => .{ .xbgr = .{ 2, 10, 10, 10 } },
-                                48 => .{ .xbgr = @splat(16) },
-                                else => error.InvalidFormat,
-                            };
+                            break :blk .{ .xbgr = decodePaddedRgbTuple(i) };
                         }
 
                         break :blk error.InvalidFormat;

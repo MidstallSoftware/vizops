@@ -25,6 +25,7 @@ pub const Value = union(enum) {
     xbgr_a: @Vector(4, u8),
     rgbx_a: @Vector(4, u8),
     bgrx_a: @Vector(4, u8),
+    axbxgxrx: @Vector(8, u8),
 
     pub const Feature = enum {
         float,
@@ -47,7 +48,7 @@ pub const Value = union(enum) {
 
     inline fn decodePaddedRgbTuple(i: u8) @Vector(4, u8) {
         const x: u8 = i / 3;
-        if ((i % 2) == 0) {
+        if ((i % 2) == 0 and (i % 4) == 2) {
             return @splat(x);
         }
 
@@ -215,6 +216,10 @@ pub const Value = union(enum) {
                         if (std.ascii.isDigit(value[3])) {
                             const i = try std.fmt.parseInt(u8, value[2..][0..2], 10);
 
+                            if (i == 10) {
+                                break :blk .{ .axbxgxrx = .{ 10, 6, 10, 6, 10, 6, 10, 6 } };
+                            }
+
                             break :blk .{ .abgr = decodePaddedRgbTuple(i) };
                         }
 
@@ -346,6 +351,7 @@ pub const Value = union(enum) {
             .rgb, .bgr => |v| @reduce(.Add, v),
             .abgr_f, .argb_f, .xbgr_f, .xrgb_f, .rgba, .xrgb, .rgbx, .bgrx, .xbgr, .argb, .abgr, .bgra => |v| @reduce(.Add, v),
             .xrgb_a, .xbgr_a, .rgbx_a, .bgrx_a => |v| @reduce(.Add, v) + 8,
+            .axbxgxrx => |v| @reduce(.Add, v),
         };
     }
 };

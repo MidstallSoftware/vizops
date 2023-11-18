@@ -48,11 +48,13 @@ pub const Value = union(enum) {
 
     inline fn decodePaddedRgbTuple(i: u8) @Vector(4, u8) {
         const x: u8 = i / 3;
-        if ((i % 2) == 0 and (i % 4) == 2) {
+        if ((i % 4) == 0) {
             return @splat(x);
         }
 
-        return .{ (i + 1) - (x * 3), x, x, x };
+        var result: @Vector(4, u8) = .{ 0, x, x, x };
+        while (result[0] == 0 or (@reduce(.Add, result) % 2) != 0) : (result[0] += 1) {}
+        return result;
     }
 
     pub fn decode(ivalue: u32) (std.fmt.ParseIntError || error{InvalidFormat})!Value {

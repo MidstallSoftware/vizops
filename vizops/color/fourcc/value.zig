@@ -36,6 +36,24 @@ pub const Value = union(enum) {
         padding,
     };
 
+    pub inline fn eq(self: Value, other: Value) bool {
+        if (std.meta.activeTag(self) != std.meta.activeTag(other)) return false;
+
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
+        inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
+                const a = @field(self, field.name);
+                const b = @field(other, field.name);
+
+                if (@TypeOf(a) == u8) return a == b;
+                return std.simd.countTrues(a == b) == @TypeOf(a).Vector.len;
+            }
+        }
+        return false;
+    }
+
     pub fn channelSize(self: Value) usize {
         const EnumType = @typeInfo(Value).Union.tag_type.?;
         const Enum = @typeInfo(EnumType).Enum;

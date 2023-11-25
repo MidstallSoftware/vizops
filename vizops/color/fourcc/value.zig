@@ -36,6 +36,18 @@ pub const Value = union(enum) {
         padding,
     };
 
+    pub inline fn channelCount(self: Value) usize {
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
+        inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
+                return field.name.len - std.mem.count(u8, field.name, "_");
+            }
+        }
+        return 0;
+    }
+
     pub inline fn paddingCount(self: Value) usize {
         const EnumType = @typeInfo(Value).Union.tag_type.?;
         const Enum = @typeInfo(EnumType).Enum;

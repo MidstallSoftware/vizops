@@ -2,6 +2,8 @@ const std = @import("std");
 const vizops = @import("vizops");
 
 pub fn main() !void {
+    const alloc = std.heap.page_allocator;
+
     const v = vizops.vector.Float32Vector2.zero()
         .add(.{ @as(f32, 1.0), @as(f32, 0.5) })
         .sub(@as(f32, 2.0))
@@ -42,6 +44,11 @@ pub fn main() !void {
             std.debug.print("\n", .{});
         }
     }
+
+    const argb8888 = try vizops.color.fourcc.Value.decode(vizops.color.fourcc.formats.argb8888);
+    const colorBuff = try c.allocWrite(alloc, argb8888);
+    defer alloc.free(colorBuff);
+    std.debug.print("Color as argb8888: {any}\n", .{colorBuff});
 
     //const icc = vizops.color.icc.read(std.heap.page_allocator, buf.reader()) catch |err| {
     //    std.debug.print("Buffer was at {}\n", .{buf.pos});

@@ -1,4 +1,7 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const Allocator = std.mem.Allocator;
+const FourccValue = @import("../fourcc/value.zig").Value;
 
 pub fn sRGB(comptime T: type) type {
     return struct {
@@ -20,6 +23,70 @@ pub fn sRGB(comptime T: type) type {
         value: Type = @splat(0),
 
         pub usingnamespace @import("base.zig").Color(sRGB, Self, T);
+
+        pub inline fn writeBuffer(self: Self, format: FourccValue, buff: []u8) !void {
+            try self.write(format, std.mem.bytesAsSlice(T, buff));
+        }
+
+        pub inline fn allocWrite(self: Self, alloc: Allocator, format: FourccValue) ![]T {
+            const buf = try alloc.alloc(T, format.channelCount());
+            errdefer alloc.free(buf);
+
+            try self.write(format, buf);
+            return buf;
+        }
+
+        pub inline fn write(self: Self, format: FourccValue, value: []T) !void {
+            const channels = format.channelCount();
+            if (value.len < channels) return error.InvalidChannels;
+
+            if (@typeInfo(T) == .Float and format.has(.float)) {
+                switch (format) {
+                    .argb_f => @memcpy(value[0..4], [4]T{ self.value[3], self.value[0], self.value[1], self.value[2] }),
+                    .abgr_f => @memcpy(value[0..4], [4]T{ self.value[3], self.value[2], self.value[1], self.value[0] }),
+                    .xrgb_f => @memcpy(value[0..4], [4]T{ 0, self.value[0], self.value[1], self.value[2] }),
+                    .xbgr_f => @memcpy(value[0..4], [4]T{ 0, self.value[2], self.value[1], self.value[0] }),
+                    else => return error.InvalidFormat,
+                }
+
+                const size = @typeInfo(T).Float.bits * value.len;
+                const width = format.width();
+
+                if (size != width) return error.InvalidWidth;
+                return;
+            }
+
+            if (@typeInfo(T) == .Int and !format.has(.float)) {
+                switch (format) {
+                    .r => value[0] = self.value[0],
+                    .rg => @memcpy(value[0..2], &[2]T{ self.value[0], self.value[1] }),
+                    .gr => @memcpy(value[0..2], &[2]T{ self.value[1], self.value[0] }),
+                    .rgb => @memcpy(value[0..3], &[3]T{ self.value[0], self.value[1], self.value[2] }),
+                    .bgr => @memcpy(value[0..3], &[3]T{ self.value[2], self.value[1], self.value[0] }),
+                    .xrgb => @memcpy(value[0..4], &[4]T{ 0, self.value[0], self.value[1], self.value[2] }),
+                    .xbgr => @memcpy(value[0..4], &[4]T{ 0, self.value[2], self.value[1], self.value[0] }),
+                    .rgba => @memcpy(value[0..4], &[4]T{ self.value[0], self.value[1], self.value[2], self.value[3] }),
+                    .rgbx => @memcpy(value[0..4], &[4]T{ self.value[0], self.value[1], self.value[2], 0 }),
+                    .bgrx => @memcpy(value[0..4], &[4]T{ self.value[2], self.value[1], self.value[0], 0 }),
+                    .argb => @memcpy(value[0..4], &[4]T{ self.value[3], self.value[0], self.value[1], self.value[2] }),
+                    .abgr => @memcpy(value[0..4], &[4]T{ self.value[3], self.value[2], self.value[1], self.value[0] }),
+                    .bgra => @memcpy(value[0..4], &[4]T{ self.value[2], self.value[1], self.value[0], self.value[3] }),
+                    .xrgb_a => @memcpy(value[0..5], &[5]T{ 0, self.value[0], self.value[1], self.value[2], 0 }),
+                    .xbgr_a => @memcpy(value[0..5], &[5]T{ 0, self.value[2], self.value[1], self.value[0], 0 }),
+                    .rgbx_a => @memcpy(value[0..5], &[5]T{ self.value[0], self.value[1], self.value[2], 0, 0 }),
+                    .bgrx_a => @memcpy(value[0..5], &[5]T{ self.value[2], self.value[1], self.value[0], 0, 0 }),
+                    .axbxgxrx => @memcpy(value[0..8], &[8]T{ self.value[3], 0, self.value[2], 0, self.value[1], 0, self.value[0], 0 }),
+                    else => return error.InvalidFormat,
+                }
+
+                const size = @typeInfo(T).Int.bits * value.len;
+                const width = format.width();
+
+                if (size != width) return error.InvalidWidth;
+                return;
+            }
+            return error.InvalidType;
+        }
 
         pub inline fn convert(self: Self, t: ColorFormatType) ColorFormatUnion {
             return switch (t) {

@@ -24,7 +24,7 @@ pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: fourcc.Value,
     return if (format.has(.float)) switch (w) {
         16 => .{ .float16 = try readBuffer(f16, colorSpace, format, buf) },
         32 => .{ .float32 = try readBuffer(f32, colorSpace, format, buf) },
-        64 => .{ .float16 = try readBuffer(f64, colorSpace, format, buf) },
+        64 => .{ .float64 = try readBuffer(f64, colorSpace, format, buf) },
         else => error.InvalidWidth,
     } else switch (w) {
         3 => .{ .uint3 = try readBuffer(u3, colorSpace, format, buf) },

@@ -32,7 +32,7 @@ pub fn sRGB(comptime T: type) type {
                 },
             }) else T;
 
-            return sRGB(IntType).read(format, std.mem.bytesAsSlice(IntType, if (@typeInfo(T) == .Float) @bitCast(buff) else buff)).cast(T);
+            return (try sRGB(IntType).read(format, @alignCast(std.mem.bytesAsSlice(IntType, buff)))).cast(T);
         }
 
         pub fn read(format: FourccValue, value: []T) !Self {
@@ -84,7 +84,7 @@ pub fn sRGB(comptime T: type) type {
                 },
             }) else T;
 
-            try self.cast(IntType).write(format, std.mem.bytesAsSlice(IntType, buff));
+            try self.cast(IntType).write(format, @alignCast(std.mem.bytesAsSlice(IntType, buff)));
         }
 
         pub inline fn allocWrite(self: Self, alloc: Allocator, format: FourccValue) ![]T {

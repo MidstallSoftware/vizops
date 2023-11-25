@@ -9,7 +9,7 @@ pub const Union = typed.Union;
 
 pub usingnamespace @import("color/types/srgb.zig");
 
-pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format: types.fourcc.Value, buf: []u8) !Union(T) {
+pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []u8) !Union(T) {
     return switch (colorSpace) {
         .sRGB => .{
             .sRGB = try types.sRGB(T).readBuffer(format, buf),
@@ -18,7 +18,7 @@ pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format
     };
 }
 
-pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: types.fourcc.Value, buf: []u8) !typed.Any {
+pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []u8) !typed.Any {
     const w = format.channelSize();
 
     return if (format.has(.float)) switch (w) {
@@ -42,14 +42,14 @@ pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: types.fourcc.
     };
 }
 
-pub fn writeBuffer(comptime T: type, format: types.fourcc.Value, buf: []u8, value: Union(T)) !void {
+pub fn writeBuffer(comptime T: type, format: fourcc.Value, buf: []u8, value: Union(T)) !void {
     return switch (value) {
         .sRGB => |sRGB| sRGB.writeBuffer(format, buf),
         else => error.InvalidColorSpace,
     };
 }
 
-pub fn writeAnyBuffer(format: types.fourcc.Value, buf: []u8, value: typed.Any) !void {
+pub fn writeAnyBuffer(format: fourcc.Value, buf: []u8, value: typed.Any) !void {
     const EnumType = @typeInfo(typed.Any).Union.tag_type.?;
     const Enum = @typeInfo(EnumType).Enum;
     inline for (@typeInfo(typed.Any).Union.fields, 0..) |field, i| {

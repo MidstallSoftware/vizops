@@ -47,12 +47,14 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
         }
 
         pub inline fn eq(self: Self, b: anytype) bool {
-            return switch (@typeInfo(@TypeOf(b))) {
-                .Pointer => self.eq(b.*),
-                .Int, .Float, .Vector, .Array => self.eq(init(b)),
-                .Struct => |s| if (s.is_tuple) self.eq(init(b)) else std.simd.countTrues(self.value == b.value) == @typeInfo(Self.Type).Vector.len,
+            const bvalue = switch (@typeInfo(@TypeOf(b))) {
+                .Pointer => b.*,
+                .Int, .Float, .Vector, .Array => init(b).value,
+                .Struct => |s| if (s.is_tuple) init(b).value else b.value,
                 else => @compileError("Incompatible type: " ++ @typeName(@TypeOf(b))),
             };
+
+            return std.simd.countTrues(self.value == bvalue) == @typeInfo(Self.Type).Vector.len;
         }
     };
 }

@@ -6,6 +6,8 @@ pub const fourcc = @import("color/fourcc.zig");
 pub const types = @import("color/types.zig");
 pub const Typed = typed.Typed;
 pub const Union = typed.Union;
+pub const Any = typed.Any;
+pub const unionEqual = typed.unionEqual;
 
 pub usingnamespace @import("color/types/srgb.zig");
 

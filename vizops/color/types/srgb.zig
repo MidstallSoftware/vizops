@@ -24,6 +24,51 @@ pub fn sRGB(comptime T: type) type {
 
         pub usingnamespace @import("base.zig").Color(sRGB, Self, T);
 
+        pub inline fn readBuffer(format: FourccValue, buff: []u8) !Self {
+            return read(format, std.mem.bytesAsSlice(T, buff));
+        }
+
+        pub fn read(format: FourccValue, value: []u8) !Self {
+            const channels = format.channelCount();
+            if (value.len < channels) return error.InvalidChannels;
+
+            if (@typeInfo(T) == .Float and format.has(.float)) {
+                return switch (format) {
+                    .argb_f => Self.init(.{ value[1], value[2], value[3], value[0] }),
+                    .abgr_f => Self.init(.{ value[1], value[3], value[2], value[0] }),
+                    .xrgb_f => Self.init(.{ value[1], value[2], value[3], 1.0 }),
+                    .xbgr_f => Self.init(.{ value[3], value[2], value[1], 1.0 }),
+                    else => return error.InvalidFormat,
+                };
+            }
+
+            if (@typeInfo(T) == .Int and !format.has(.float)) {
+                const fullAlpha = std.math.maxInt(T);
+                return switch (format) {
+                    .r => Self.init(.{ value[0], 0, 0, fullAlpha }),
+                    .rg => Self.init(.{ value[0], value[1], 0, fullAlpha }),
+                    .gr => Self.init(.{ value[1], value[0], 0, fullAlpha }),
+                    .rgb => Self.init(.{ value[0], value[1], value[2], fullAlpha }),
+                    .bgr => Self.init(.{ value[2], value[1], value[0], fullAlpha }),
+                    .xrgb => Self.init(.{ value[1], value[2], value[3], fullAlpha }),
+                    .xbgr => Self.init(.{ value[3], value[2], value[1], fullAlpha }),
+                    .rgba => Self.init(.{ value[0], value[1], value[2], value[3] }),
+                    .rgbx => Self.init(.{ value[0], value[1], value[2], fullAlpha }),
+                    .bgrx => Self.init(.{ value[2], value[1], value[0], fullAlpha }),
+                    .argb => Self.init(.{ value[1], value[2], value[3], value[0] }),
+                    .abgr => Self.init(.{ value[3], value[2], value[1], value[0] }),
+                    .bgra => Self.init(.{ value[2], value[1], value[0], value[3] }),
+                    .xrgb_a => Self.init(.{ value[1], value[2], value[3], fullAlpha }),
+                    .xbgr_a => Self.init(.{ value[3], value[2], value[1], fullAlpha }),
+                    .rgbx_a => Self.init(.{ value[0], value[2], value[3], fullAlpha }),
+                    .bgrx_a => Self.init(.{ value[2], value[1], value[0], fullAlpha }),
+                    .axbxgxrx => Self.init(.{ value[6], value[4], value[2], value[0] }),
+                    else => return error.InvalidFormat,
+                };
+            }
+            return error.InvalidType;
+        }
+
         pub inline fn writeBuffer(self: Self, format: FourccValue, buff: []u8) !void {
             try self.write(format, std.mem.bytesAsSlice(T, buff));
         }
@@ -36,7 +81,7 @@ pub fn sRGB(comptime T: type) type {
             return buf;
         }
 
-        pub inline fn write(self: Self, format: FourccValue, value: []T) !void {
+        pub fn write(self: Self, format: FourccValue, value: []T) !void {
             const channels = format.channelCount();
             if (value.len < channels) return error.InvalidChannels;
 
@@ -88,7 +133,7 @@ pub fn sRGB(comptime T: type) type {
             return error.InvalidType;
         }
 
-        pub inline fn convert(self: Self, t: ColorFormatType) ColorFormatUnion {
+        pub fn convert(self: Self, t: ColorFormatType) ColorFormatUnion {
             return switch (t) {
                 .sRGB => .{ .sRGB = self },
                 .linearRGB => blk: {

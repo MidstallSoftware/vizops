@@ -36,6 +36,52 @@ pub const Value = union(enum) {
         padding,
     };
 
+    pub fn channelSize(self: Value) usize {
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
+        inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
+                const fieldType = @TypeOf(@field(self, field.name));
+                if (fieldType == u8) return @field(self, field.name);
+
+                var size: usize = 0;
+                inline for (field.name, 0..) |c, x| {
+                    if (c == '_') break;
+
+                    if (c != 'x') {
+                        size = @max(size, @field(self, field.name)[x]);
+                    }
+                }
+                return size;
+            }
+        }
+        return 0;
+    }
+
+    pub inline fn paddingSize(self: Value) usize {
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
+        inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
+                const fieldType = @TypeOf(@field(self, field.name));
+                if (fieldType == u8) return 0;
+
+                var size: usize = 0;
+                inline for (field.name, 0..) |c, x| {
+                    if (c == '_') break;
+
+                    if (c == 'x') {
+                        size += @field(self, field.name)[x];
+                    }
+                }
+                return size;
+            }
+        }
+        return 0;
+    }
+
     pub inline fn channelCount(self: Value) usize {
         const EnumType = @typeInfo(Value).Union.tag_type.?;
         const Enum = @typeInfo(EnumType).Enum;
@@ -399,19 +445,22 @@ pub const Value = union(enum) {
         };
     }
 
-    pub inline fn forAny(self: Value) !ColorTypedAny {
-        var w = self.width();
-
-        if (self.has(.padding)) {
-            w -= self.paddingCount() * 8;
-        }
+    pub fn forAny(self: Value) !ColorTypedAny {
+        const w = self.channelSize();
 
         return if (self.has(.float)) switch (w) {
+            16 => .{ .float16 = try self.@"for"(f16) },
             32 => .{ .float32 = try self.@"for"(f32) },
             64 => .{ .float64 = try self.@"for"(f64) },
             else => error.InvalidWidth,
         } else switch (w) {
+            3 => .{ .uint3 = try self.@"for"(u3) },
+            4 => .{ .uint4 = try self.@"for"(u4) },
+            5 => .{ .uint5 = try self.@"for"(u5) },
+            6 => .{ .uint6 = try self.@"for"(u6) },
             8 => .{ .uint8 = try self.@"for"(u8) },
+            10 => .{ .uint10 = try self.@"for"(u10) },
+            12 => .{ .uint12 = try self.@"for"(u12) },
             16 => .{ .uint16 = try self.@"for"(u16) },
             24 => .{ .uint24 = try self.@"for"(u24) },
             32 => .{ .uint32 = try self.@"for"(u32) },

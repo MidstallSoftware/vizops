@@ -166,12 +166,12 @@ pub const Dict = extern struct {
         try records.ensureTotalCapacity(self.count);
 
         for (list.items) |record| {
-            var name = try alloc.alloc(u16, @divExact(record.nameSize, @sizeOf(u16)));
+            const name = try alloc.alloc(u16, @divExact(record.nameSize, @sizeOf(u16)));
             errdefer alloc.free(name);
             for (name) |*c| c.* = try reader.readInt(u16, .big);
             assert(try std.unicode.utf16CountCodepoints(name) == @divExact(record.nameSize, @sizeOf(u16)));
 
-            var value = try alloc.alloc(u16, @divExact(record.valueSize, @sizeOf(u16)));
+            const value = try alloc.alloc(u16, @divExact(record.valueSize, @sizeOf(u16)));
             errdefer alloc.free(value);
             for (value) |*c| c.* = try reader.readInt(u16, .big);
             assert(try std.unicode.utf16CountCodepoints(value) == @divExact(record.valueSize, @sizeOf(u16)));
@@ -336,7 +336,7 @@ pub const MultiLocalizedUnicode = extern struct {
             var key: [4]u8 = undefined;
             _ = try std.fmt.bufPrint(&key, "{s}{s}", .{ record.lang, record.country });
 
-            var value = try alloc.alloc(u16, @divExact(record.len, @sizeOf(u16)));
+            const value = try alloc.alloc(u16, @divExact(record.len, @sizeOf(u16)));
             errdefer alloc.free(value);
 
             for (value) |*c| c.* = try reader.readInt(u16, .big);

@@ -80,7 +80,7 @@ pub const Any = union(enum) {
                     var info: InfoType = undefined;
                     info.bits = size;
 
-                    if (@hasField(info, "signedness")) {
+                    if (@hasField(InfoType, "signedness")) {
                         info.signedness = sign;
                     }
 

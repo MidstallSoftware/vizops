@@ -42,6 +42,28 @@ pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: types.fourcc.
     };
 }
 
+pub fn writeBuffer(comptime T: type, format: types.fourcc.Value, buf: []u8, value: Union(T)) !void {
+    return switch (value) {
+        .sRGB => |sRGB| sRGB.writeBuffer(format, buf),
+        else => error.InvalidColorSpace,
+    };
+}
+
+pub fn writeAnyBuffer(format: types.fourcc.Value, buf: []u8, value: typed.Any) !void {
+    const EnumType = @typeInfo(typed.Any).Union.tag_type.?;
+    const Enum = @typeInfo(EnumType).Enum;
+    inline for (@typeInfo(typed.Any).Union.fields, 0..) |field, i| {
+        const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+        if (value == fieldEnum) {
+            return switch (@field(value, field.name)) {
+                .sRGB => |sRGB| sRGB.writeBuffer(format, buf),
+                else => error.InvalidColorSpace,
+            };
+        }
+    }
+    return error.InvalidType;
+}
+
 test {
     _ = icc;
     _ = fourcc;

@@ -37,7 +37,7 @@ pub fn main() !void {
         std.debug.print("\t{s} - {!any} - 0x{x}", .{ d.name, vizops.color.fourcc.Value.decode(f), f });
 
         if (vizops.color.fourcc.Value.decode(f) catch null) |a| {
-            std.debug.print(" - {}\n", .{a.width()});
+            std.debug.print(" - {} {!any}\n", .{ a.width(), a.forAny() });
         } else {
             std.debug.print("\n", .{});
         }

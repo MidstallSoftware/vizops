@@ -1,11 +1,10 @@
 const std = @import("std");
-const metaplus = @import("meta+");
 
 pub fn sRGB(comptime T: type) type {
     return struct {
         const ColorFormats = @import("../typed.zig").Typed(T);
+        const ColorFormatUnion = @import("../typed.zig").Union(T);
         const ColorFormatType = std.meta.DeclEnum(ColorFormats);
-        const ColorFormatUnion = metaplus.unions.useTag(metaplus.unions.fromDecls(ColorFormats), ColorFormatType);
         const Self = @This();
 
         pub const Type = @Vector(4, T);

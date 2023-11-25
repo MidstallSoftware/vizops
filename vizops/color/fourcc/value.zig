@@ -1,5 +1,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const colorTypes = @import("../typed.zig");
+const ColorTypedUnion = colorTypes.Union;
+const ColorTypedAny = colorTypes.Any;
 
 pub const Value = union(enum) {
     c: u8,
@@ -30,16 +33,31 @@ pub const Value = union(enum) {
     pub const Feature = enum {
         float,
         plane,
+        padding,
     };
 
-    pub inline fn has(self: Value, feat: Feature) bool {
-        const Enum = @typeInfo(@typeInfo(Value).Union.tag_type.?).Enum;
+    pub inline fn paddingCount(self: Value) usize {
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
         inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
-            const fieldEnum: Enum = @enumFromInt(Enum.fields[i].value);
-            if (std.meta.activeTag(self) == fieldEnum) {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
+                return std.mem.count(u8, field.name, "x");
+            }
+        }
+        return 0;
+    }
+
+    pub inline fn has(self: Value, feat: Feature) bool {
+        const EnumType = @typeInfo(Value).Union.tag_type.?;
+        const Enum = @typeInfo(EnumType).Enum;
+        inline for (@typeInfo(Value).Union.fields, 0..) |field, i| {
+            const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+            if (self == fieldEnum) {
                 return switch (feat) {
                     .float => std.mem.endsWith(u8, field.name, "_f"),
                     .plane => std.mem.endsWith(u8, field.name, "_a"),
+                    .padding => std.mem.count(u8, field.name, "x") > 0,
                 };
             }
         }
@@ -354,6 +372,39 @@ pub const Value = union(enum) {
             .abgr_f, .argb_f, .xbgr_f, .xrgb_f, .rgba, .xrgb, .rgbx, .bgrx, .xbgr, .argb, .abgr, .bgra => |v| @reduce(.Add, v),
             .xrgb_a, .xbgr_a, .rgbx_a, .bgrx_a => |v| @reduce(.Add, v) + 8,
             .axbxgxrx => |v| @reduce(.Add, v),
+        };
+    }
+
+    pub inline fn @"for"(self: Value, comptime T: type) !ColorTypedUnion(T) {
+        return switch (self) {
+            .r, .rg, .gr, .rgb, .bgr, .rgba, .xrgb, .rgbx, .bgrx, .xbgr, .argb, .abgr, .bgra, .axbxgxrx, .xrgb_a, .xbgr_a, .rgbx_a, .bgrx_a => if (@typeInfo(T) != .Int) error.InvalidType else .{
+                .sRGB = .{},
+            },
+            .abgr_f, .argb_f, .xbgr_f, .xrgb_f => if (@typeInfo(T) != .Float) error.InvalidType else .{
+                .sRGB = .{},
+            },
+            else => error.InvalidType,
+        };
+    }
+
+    pub inline fn forAny(self: Value) !ColorTypedAny {
+        var w = self.width();
+
+        if (self.has(.padding)) {
+            w -= self.paddingCount() * 8;
+        }
+
+        return if (self.has(.float)) switch (w) {
+            32 => .{ .float32 = try self.@"for"(f32) },
+            64 => .{ .float64 = try self.@"for"(f64) },
+            else => error.InvalidWidth,
+        } else switch (w) {
+            8 => .{ .uint8 = try self.@"for"(u8) },
+            16 => .{ .uint16 = try self.@"for"(u16) },
+            24 => .{ .uint24 = try self.@"for"(u24) },
+            32 => .{ .uint32 = try self.@"for"(u32) },
+            64 => .{ .uint64 = try self.@"for"(u64) },
+            else => error.InvalidWidth,
         };
     }
 };

@@ -45,12 +45,13 @@ pub fn main() !void {
         }
     }
 
-    const argb8888 = try vizops.color.fourcc.Value.decode(vizops.color.fourcc.formats.argb8888);
-    const colorBuff = try c.allocWrite(alloc, argb8888);
+    const argb16161616f = try vizops.color.fourcc.Value.decode(vizops.color.fourcc.formats.argb16161616f);
+    const colorBuff = try c.cast(f16).allocWrite(alloc, argb16161616f);
     defer alloc.free(colorBuff);
-    std.debug.print("Color as argb8888: {any}\nConverted back: {}\n", .{
+
+    std.debug.print("Color as argb16161616f: {any}\nConverted back: {}\n", .{
         colorBuff,
-        try vizops.color.types.sRGB(u8).readBuffer(argb8888, colorBuff),
+        try vizops.color.types.sRGB(f16).read(argb16161616f, colorBuff),
     });
 
     //const icc = vizops.color.icc.read(std.heap.page_allocator, buf.reader()) catch |err| {

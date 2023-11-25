@@ -25,10 +25,17 @@ pub fn sRGB(comptime T: type) type {
         pub usingnamespace @import("base.zig").Color(sRGB, Self, T);
 
         pub inline fn readBuffer(format: FourccValue, buff: []u8) !Self {
-            return read(format, std.mem.bytesAsSlice(T, buff));
+            const IntType = if (@typeInfo(T) == .Float) @Type(.{
+                .Int = .{
+                    .signedness = .unsigned,
+                    .bits = @typeInfo(T).Int.bits,
+                },
+            }) else T;
+
+            return sRGB(IntType).read(format, std.mem.bytesAsSlice(IntType, if (@typeInfo(T) == .Float) @bitCast(buff) else buff)).cast(T);
         }
 
-        pub fn read(format: FourccValue, value: []u8) !Self {
+        pub fn read(format: FourccValue, value: []T) !Self {
             const channels = format.channelCount();
             if (value.len < channels) return error.InvalidChannels;
 
@@ -70,7 +77,14 @@ pub fn sRGB(comptime T: type) type {
         }
 
         pub inline fn writeBuffer(self: Self, format: FourccValue, buff: []u8) !void {
-            try self.write(format, std.mem.bytesAsSlice(T, buff));
+            const IntType = if (@typeInfo(T) == .Float) @Type(.{
+                .Int = .{
+                    .signedness = .unsigned,
+                    .bits = @typeInfo(T).Int.bits,
+                },
+            }) else T;
+
+            try self.cast(IntType).write(format, std.mem.bytesAsSlice(IntType, buff));
         }
 
         pub inline fn allocWrite(self: Self, alloc: Allocator, format: FourccValue) ![]T {
@@ -87,17 +101,12 @@ pub fn sRGB(comptime T: type) type {
 
             if (@typeInfo(T) == .Float and format.has(.float)) {
                 switch (format) {
-                    .argb_f => @memcpy(value[0..4], [4]T{ self.value[3], self.value[0], self.value[1], self.value[2] }),
-                    .abgr_f => @memcpy(value[0..4], [4]T{ self.value[3], self.value[2], self.value[1], self.value[0] }),
-                    .xrgb_f => @memcpy(value[0..4], [4]T{ 0, self.value[0], self.value[1], self.value[2] }),
-                    .xbgr_f => @memcpy(value[0..4], [4]T{ 0, self.value[2], self.value[1], self.value[0] }),
+                    .argb_f => value[0..4].* = [4]T{ self.value[3], self.value[0], self.value[1], self.value[2] },
+                    .abgr_f => value[0..4].* = [4]T{ self.value[3], self.value[2], self.value[1], self.value[0] },
+                    .xrgb_f => value[0..4].* = [4]T{ 0, self.value[0], self.value[1], self.value[2] },
+                    .xbgr_f => value[0..4].* = [4]T{ 0, self.value[2], self.value[1], self.value[0] },
                     else => return error.InvalidFormat,
                 }
-
-                const size = @typeInfo(T).Float.bits * value.len;
-                const width = format.width();
-
-                if (size != width) return error.InvalidWidth;
                 return;
             }
 
@@ -123,11 +132,6 @@ pub fn sRGB(comptime T: type) type {
                     .axbxgxrx => @memcpy(value[0..8], &[8]T{ self.value[3], 0, self.value[2], 0, self.value[1], 0, self.value[0], 0 }),
                     else => return error.InvalidFormat,
                 }
-
-                const size = @typeInfo(T).Int.bits * value.len;
-                const width = format.width();
-
-                if (size != width) return error.InvalidWidth;
                 return;
             }
             return error.InvalidType;

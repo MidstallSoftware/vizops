@@ -28,7 +28,7 @@ pub fn sRGB(comptime T: type) type {
             const IntType = if (@typeInfo(T) == .Float) @Type(.{
                 .Int = .{
                     .signedness = .unsigned,
-                    .bits = @typeInfo(T).Int.bits,
+                    .bits = @typeInfo(T).Float.bits,
                 },
             }) else T;
 
@@ -80,7 +80,7 @@ pub fn sRGB(comptime T: type) type {
             const IntType = if (@typeInfo(T) == .Float) @Type(.{
                 .Int = .{
                     .signedness = .unsigned,
-                    .bits = @typeInfo(T).Int.bits,
+                    .bits = @typeInfo(T).Float.bits,
                 },
             }) else T;
 

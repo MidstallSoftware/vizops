@@ -48,7 +48,7 @@ pub const Value = union(enum) {
                 const b = @field(other, field.name);
 
                 if (@TypeOf(a) == u8) return a == b;
-                return std.simd.countTrues(a == b) == @TypeOf(a).Vector.len;
+                return std.simd.countTrues(a == b) == @typeInfo(@TypeOf(a)).Vector.len;
             }
         }
         return false;

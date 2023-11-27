@@ -11,7 +11,7 @@ pub const unionEqual = typed.unionEqual;
 
 pub usingnamespace @import("color/types/srgb.zig");
 
-pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []u8) !Union(T) {
+pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []const u8) !Union(T) {
     return switch (colorSpace) {
         .sRGB => .{
             .sRGB = try types.sRGB(T).readBuffer(format, buf),
@@ -20,7 +20,7 @@ pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format
     };
 }
 
-pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []u8) !typed.Any {
+pub fn readAnyBuffer(colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []const u8) !typed.Any {
     const w = format.channelSize();
 
     return if (format.has(.float)) switch (w) {

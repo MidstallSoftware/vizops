@@ -24,7 +24,7 @@ pub fn sRGB(comptime T: type) type {
 
         pub usingnamespace @import("base.zig").Color(sRGB, Self, T);
 
-        pub inline fn readBuffer(format: FourccValue, buff: []u8) !Self {
+        pub inline fn readBuffer(format: FourccValue, buff: []const u8) !Self {
             const IntType = if (@typeInfo(T) == .Float) @Type(.{
                 .Int = .{
                     .signedness = .unsigned,
@@ -35,7 +35,7 @@ pub fn sRGB(comptime T: type) type {
             return (try sRGB(IntType).read(format, @alignCast(std.mem.bytesAsSlice(IntType, buff)))).cast(T);
         }
 
-        pub fn read(format: FourccValue, value: []T) !Self {
+        pub fn read(format: FourccValue, value: []const T) !Self {
             const channels = format.channelCount();
             if (value.len < channels) return error.InvalidChannels;
 

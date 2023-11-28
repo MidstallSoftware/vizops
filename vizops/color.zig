@@ -30,12 +30,12 @@ pub fn blendAny(source: typed.Any, original: typed.Any, mode: BlendMode) !typed.
             const EnumType2 = @typeInfo(@TypeOf(a)).Union.tag_type.?;
             const Enum2 = @typeInfo(EnumType2).Enum;
             inline for (@typeInfo(@TypeOf(a)).Union.fields, 0..) |field2, x| {
-                const fieldEnum2: EnumType = @enumFromInt(Enum2.fields[x].value);
+                const fieldEnum2: EnumType2 = @enumFromInt(Enum2.fields[x].value);
                 if (a == fieldEnum2) {
                     const b = @field(a, field2.name);
 
-                    if (@hasDecl(b, "blend")) {
-                        return b.blend(@field(@field(original, field.name), field2.name), mode);
+                    if (@hasDecl(@TypeOf(b), "blend")) {
+                        return @unionInit(typed.Any, field.name, @unionInit(@TypeOf(a), field2.name, b.blend(@field(@field(original, field.name), field2.name), mode)));
                     }
                     return error.NoImplementation;
                 }

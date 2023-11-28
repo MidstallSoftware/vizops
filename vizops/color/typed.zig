@@ -146,8 +146,7 @@ pub const Any = union(enum) {
 
                 inline for (Enum.fields) |f2| {
                     if (f2.value == @intFromEnum(t)) {
-                        // FIXME: error: expected type 'meta+.unions.useTag(meta+.unions.fromDecls(vizops.color.typed.Typed(f16)),meta.DeclEnum(vizops.color.typed.Typed(f16)))', found 'meta+.unions.useTag(meta+.unions.fromDecls(vizops.color.typed.Typed(f32)),meta.DeclEnum(vizops.color.typed.Typed(f32)))'
-                        return @unionInit(Any, field.name, unionCast(Type(field.name), Type(f2.name), a));
+                        return @unionInit(Any, f2.name, unionCast(Type(field.name), Type(f2.name), a));
                     }
                 }
             }

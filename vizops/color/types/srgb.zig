@@ -35,12 +35,15 @@ pub fn sRGB(comptime T: type) type {
                 .alpha => .{
                     .value = blk: {
                         var value: Type = @splat(0);
+                        const V = if (@typeInfo(T) == .Float) T else f32;
                         const max = if (@typeInfo(T) == .Float) @as(T, 1.0) else std.math.maxInt(T);
-                        const alpha: T = if (@typeInfo(T) == .Float) self.value[3] else @intFromFloat(@as(f32, @floatFromInt(self.value[3])) / @as(f32, @floatFromInt(max)));
+                        const alpha: V = if (@typeInfo(T) == .Float) self.value[3] else @as(f32, @floatFromInt(self.value[3])) / @as(f32, @floatFromInt(max));
 
                         inline for (0..3) |i| {
-                            const c = (self.value[i] * alpha) + (original.value[i] * (1 - alpha));
-                            value[i] = if (@typeInfo(T) == .Float) c else @intFromFloat(c);
+                            const fg = std.math.lossyCast(V, self.value[i]);
+                            const bg = std.math.lossyCast(V, original.value[i]);
+                            const c: V = (fg * alpha) + (bg * (1 - alpha));
+                            value[i] = std.math.lossyCast(T, c);
                         }
 
                         value[3] = max;
@@ -167,27 +170,20 @@ pub fn sRGB(comptime T: type) type {
             return switch (t) {
                 .sRGB => .{ .sRGB = self },
                 .linearRGB => blk: {
-                    const V = if (@typeInfo(T) == .Float) u16 else T;
-
-                    const lut = comptime blk2: {
-                        @setEvalBranchQuota(1_000 * std.math.maxInt(V));
-                        const max = std.math.maxInt(V);
-                        var res: [max + 1]f32 = undefined;
-                        for (0..(max + 1)) |i| {
-                            const c = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(max));
-                            res[i] = if (c <= 0.04045) c / 12.92 else std.math.pow(f32, (c + 0.055) / 1.055, 2.4);
-                        }
-                        break :blk2 res;
+                    const V = switch (T) {
+                        u3, f16 => f32,
+                        else => if (@typeInfo(T) == .Int) f32 else T,
                     };
+                    var value: @Vector(4, V) = @splat(4);
 
-                    const value = self.cast(V).value;
+                    const max = std.math.maxInt(if (@typeInfo(T) == .Float) std.meta.Int(.unsigned, @typeInfo(T).Float.bits) else T);
+                    inline for (0..4) |i| {
+                        const x = self.value[i];
+                        const c = if (@typeInfo(T) == .Int) @as(V, @floatFromInt(x)) / @as(V, @floatFromInt(max)) else x;
+                        value[i] = if (c <= 0.04045) c / 12.92 else std.math.pow(V, (c + 0.055) / 1.055, 2.4);
+                    }
 
-                    break :blk .{ .linearRGB = @import("linear-rgb.zig").linearRGB(f32).init(.{
-                        lut[value[0]],
-                        lut[value[1]],
-                        lut[value[2]],
-                        lut[value[3]],
-                    }).cast(T) };
+                    break :blk .{ .linearRGB = @import("linear-rgb.zig").linearRGB(V).init(value).cast(T) };
                 },
                 .hsv => blk: {
                     const V = if (@typeInfo(T) == .Int) f32 else T;
@@ -207,7 +203,7 @@ pub fn sRGB(comptime T: type) type {
                     const v = cmax;
                     const a = value[3];
 
-                    break :blk .{ .hsv = @import("hsv.zig").Hsv(f32).init(.{ h, s, v, a }).cast(T) };
+                    break :blk .{ .hsv = @import("hsv.zig").Hsv(V).init(.{ h, s, v, a }).cast(T) };
                 },
                 .hsl => blk: {
                     const V = if (@typeInfo(T) == .Int) f32 else T;
@@ -219,7 +215,7 @@ pub fn sRGB(comptime T: type) type {
                     const a = value[3];
 
                     if (cmin == cmax) {
-                        break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ 0, 0, l, a }).cast(T) };
+                        break :blk .{ .hsl = @import("hsl.zig").Hsl(V).init(.{ 0, 0, l, a }).cast(T) };
                     }
 
                     const delta: V = cmax - cmin;
@@ -232,7 +228,7 @@ pub fn sRGB(comptime T: type) type {
 
                     const s = if (delta == 0) 0 else delta / (1 - @abs(2 * l - 1));
 
-                    break :blk .{ .hsl = @import("hsl.zig").Hsl(f32).init(.{ h, s, l, a }).cast(T) };
+                    break :blk .{ .hsl = @import("hsl.zig").Hsl(V).init(.{ h, s, l, a }).cast(T) };
                 },
                 .cmyk => blk: {
                     const V = if (@typeInfo(T) == .Int) f32 else T;

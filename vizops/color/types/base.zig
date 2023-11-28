@@ -18,6 +18,17 @@ pub fn Color(comptime Factory: fn (comptime type) type, comptime Self: type, com
             };
         }
 
+        pub inline fn inv(self: Self) Self {
+            var val: @Vector(T, VectorLength) = @splat(0);
+            const max = if (@typeInfo(T) == .Float) @as(T, 1.0) else std.math.maxInt(T);
+
+            comptime var i: usize = 0;
+            inline while (i < VectorLength) : (i += 1) {
+                val[i] = max - self.value[i];
+            }
+            return val;
+        }
+
         pub inline fn cast(self: Self, comptime V: type) Factory(V) {
             if (V == T) return self;
             if (@typeInfo(V) == .Float and @typeInfo(T) == .Float) {

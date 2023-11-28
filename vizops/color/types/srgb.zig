@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const FourccValue = @import("../fourcc/value.zig").Value;
+const BlendMode = @import("../../color.zig").BlendMode;
 
 pub fn sRGB(comptime T: type) type {
     return struct {
@@ -23,6 +24,31 @@ pub fn sRGB(comptime T: type) type {
         value: Type = @splat(0),
 
         pub usingnamespace @import("base.zig").Color(sRGB, Self, T);
+
+        pub inline fn blend(self: Self, original: Self, mode: BlendMode) Self {
+            return switch (mode) {
+                .normal => self,
+                .mul => .{
+                    .value = self.value * original.value,
+                },
+                .screen => (Self{ .value = self.inv().value * original.inv().value }).inv(),
+                .alpha => .{
+                    .value = blk: {
+                        var value: Type = @splat(0);
+                        const max = if (@typeInfo(T) == .Float) @as(T, 1.0) else std.math.maxInt(T);
+                        const alpha: T = if (@typeInfo(T) == .Float) self.value[3] else @intFromFloat(@as(f32, @floatFromInt(self.value[3])) / @as(f32, @floatFromInt(max)));
+
+                        inline for (0..3) |i| {
+                            const c = (self.value[i] * alpha) + (original.value[i] * (1 - alpha));
+                            value[i] = if (@typeInfo(T) == .Float) c else @intFromFloat(c);
+                        }
+
+                        value[3] = max;
+                        break :blk value;
+                    },
+                },
+            };
+        }
 
         pub inline fn readBuffer(format: FourccValue, buff: []const u8) !Self {
             const IntType = if (@typeInfo(T) == .Float) @Type(.{

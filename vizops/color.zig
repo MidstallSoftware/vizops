@@ -11,6 +11,40 @@ pub const unionEqual = typed.unionEqual;
 
 pub usingnamespace @import("color/types/srgb.zig");
 
+pub const BlendMode = enum {
+    normal,
+    mul,
+    screen,
+    alpha,
+};
+
+pub fn blendAny(source: typed.Any, original: typed.Any, mode: BlendMode) !typed.Any {
+    const fixedSource = try source.cast(original.getSize()).convert(original.getColorSpace());
+
+    const EnumType = @typeInfo(typed.Any).Union.tag_type.?;
+    const Enum = @typeInfo(EnumType).Enum;
+    inline for (@typeInfo(typed.Any).Union.fields, 0..) |field, i| {
+        const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
+        if (fixedSource == fieldEnum) {
+            const a = @field(fixedSource, field.name);
+            const EnumType2 = @typeInfo(@TypeOf(a)).Union.tag_type.?;
+            const Enum2 = @typeInfo(EnumType2).Enum;
+            inline for (@typeInfo(@TypeOf(a)).Union.fields, 0..) |field2, x| {
+                const fieldEnum2: EnumType = @enumFromInt(Enum2.fields[x].value);
+                if (a == fieldEnum2) {
+                    const b = @field(a, field2.name);
+
+                    if (@hasDecl(b, "blend")) {
+                        return b.blend(@field(@field(original, field.name), field2.name), mode);
+                    }
+                    return error.NoImplementation;
+                }
+            }
+        }
+    }
+    unreachable;
+}
+
 pub fn readBuffer(comptime T: type, colorSpace: std.meta.DeclEnum(types), format: fourcc.Value, buf: []const u8) !Union(T) {
     return switch (colorSpace) {
         .sRGB => .{

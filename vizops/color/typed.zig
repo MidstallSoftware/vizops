@@ -52,8 +52,8 @@ pub fn unionConvert(comptime T: type, colorspace: Colorspace, a: Union(T)) !Unio
         if (a == fieldEnum) {
             const a2 = @field(a, field.name);
 
-            if (@hasDecl(a2, "convert")) {
-                return a2.convert(colorspace);
+            if (@hasDecl(@TypeOf(a2), "convert")) {
+                return a2.convert(@enumFromInt(@intFromEnum(colorspace)));
             }
             return error.Incompatible;
         }
@@ -110,14 +110,14 @@ pub const Any = union(enum) {
         return std.meta.activeTag(self);
     }
 
-    pub inline fn getColorspace(self: Any) Colorspace {
+    pub inline fn getColorSpace(self: Any) Colorspace {
         const EnumType = @typeInfo(Any).Union.tag_type.?;
         const Enum = @typeInfo(EnumType).Enum;
         inline for (@typeInfo(Any).Union.fields, 0..) |field, i| {
             const fieldEnum: EnumType = @enumFromInt(Enum.fields[i].value);
             if (self == fieldEnum) {
                 const a = @field(self, field.name);
-                return std.meta.activeTag(a);
+                return @enumFromInt(@intFromEnum(std.meta.activeTag(a)));
             }
         }
         unreachable;
@@ -144,8 +144,9 @@ pub const Any = union(enum) {
             if (self == fieldEnum) {
                 const a = @field(self, field.name);
 
-                inline for (@typeInfo(Any).Union.fields) |f2| {
+                inline for (Enum.fields) |f2| {
                     if (f2.value == @intFromEnum(t)) {
+                        // FIXME: error: expected type 'meta+.unions.useTag(meta+.unions.fromDecls(vizops.color.typed.Typed(f16)),meta.DeclEnum(vizops.color.typed.Typed(f16)))', found 'meta+.unions.useTag(meta+.unions.fromDecls(vizops.color.typed.Typed(f32)),meta.DeclEnum(vizops.color.typed.Typed(f32)))'
                         return @unionInit(Any, field.name, unionCast(Type(field.name), Type(f2.name), a));
                     }
                 }

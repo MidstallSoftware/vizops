@@ -10,15 +10,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    _ = b.addModule("meta+", .{
-        .source_file = .{
-            .path = metaplus.builder.pathFromRoot(metaplus.module("meta+").source_file.path),
-        },
-    });
-
     const vizops = b.addModule("vizops", .{
-        .source_file = .{ .path = b.pathFromRoot("vizops.zig") },
-        .dependencies = &.{.{
+        .root_source_file = .{ .path = b.pathFromRoot("vizops.zig") },
+        .imports = &.{.{
             .name = "meta+",
             .module = metaplus.module("meta+"),
         }},
@@ -34,7 +28,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    unit_tests.addModule("meta+", metaplus.module("meta+"));
+    unit_tests.root_module.addImport("meta+", metaplus.module("meta+"));
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
     step_test.dependOn(&run_unit_tests.step);
@@ -48,7 +42,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    exe_example.addModule("vizops", vizops);
+    exe_example.root_module.addImport("vizops", vizops);
     b.installArtifact(exe_example);
 
     if (!no_docs) {

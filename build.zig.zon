@@ -4,8 +4,8 @@
   .paths = .{"."},
   .dependencies = .{
     .metaplus = .{
-      .url = "https://github.com/MidstallSoftware/meta-plus/archive/daa423ba5789b4cefcc50482461668b3f73f6e28.tar.gz",
-      .hash = "1220535dad00f4867e38e94c827c7c6b170df1883325f78a3395a20cbcc815fd6bc3",
+      .url = "https://github.com/MidstallSoftware/meta-plus/archive/7a99d69a1d965e9598d9602ba4488babab50a6bf.tar.gz",
+      .hash = "122050a89efcff9674d40e4ba9f3bde81716cd982082a4725de3524318e2d9d69837",
     },
   },
 }

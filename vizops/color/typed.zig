@@ -87,6 +87,7 @@ pub const Any = union(enum) {
         const sign: std.builtin.Signedness = if (name[0] == 'u') .unsigned else .signed;
 
         var x: usize = 0;
+        @setEvalBranchQuota(name.len * 10_000);
         inline for (name) |c| {
             if (std.ascii.isLower(c)) {
                 x += 1;

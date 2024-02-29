@@ -1,11 +1,11 @@
 .{
-  .name = "vizops",
-  .version = "0.1.0",
-  .paths = .{"."},
-  .dependencies = .{
-    .metaplus = .{
-      .url = "https://github.com/MidstallSoftware/meta-plus/archive/7a99d69a1d965e9598d9602ba4488babab50a6bf.tar.gz",
-      .hash = "122050a89efcff9674d40e4ba9f3bde81716cd982082a4725de3524318e2d9d69837",
+    .name = "vizops",
+    .version = "0.1.0",
+    .paths = .{"."},
+    .dependencies = .{
+        .metaplus = .{
+            .url = "https://github.com/MidstallSoftware/meta-plus/archive/9f8c3828e3c4445b80185dd24eeb61d0386b23dc.tar.gz",
+            .hash = "122057d6a6bd7ba8b95fe67d91f584c4c0140ca26e8bea09b92f63b649dff470bf56",
+        },
     },
-  },
 }
